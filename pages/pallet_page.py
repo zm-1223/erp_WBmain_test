@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import re
 import time
 
 from selenium.webdriver.common.by import By
@@ -16,6 +17,15 @@ class PalletPage(BasePage):
     BATCH_DRAFT = (By.XPATH, "//button[normalize-space()='批量生成草稿']")
     SELECT_ALL = (By.XPATH, "//*[normalize-space()='本页全选']")
     ONE_CLICK = (By.XPATH, "//button[normalize-space()='一键刊登']")
+    ONE_CLICK_LOCS = (
+        (By.XPATH, "//button[contains(normalize-space(), '一键刊登')]"),
+        (By.XPATH, "//*[contains(@class,'el-dropdown') and contains(., '一键刊登')]"),
+        (
+            By.XPATH,
+            "//*[self::button or self::span or self::a or self::div]"
+            "[contains(normalize-space(), '一键刊登')]",
+        ),
+    )
     VIEW_SOURCE = (By.XPATH, "//a[contains(., '查看货源')]")
     MENU_WB = (By.XPATH, "//li[@role='menuitem' and contains(., 'WB')]")
     CAT1 = (By.XPATH, "//*[normalize-space()='一级类目']")
@@ -42,15 +52,45 @@ class PalletPage(BasePage):
         }
         return mapping[which]
 
-    def has_goods(self) -> bool:
-        return any(b.is_displayed() for b in self.finds(self.ONE_CLICK))
+    def one_click_elements(self):
+        found = []
+        seen = set()
+        for loc in self.ONE_CLICK_LOCS:
+            for el in self.finds(loc):
+                try:
+                    if not el.is_displayed():
+                        continue
+                    ident = el.id
+                    if ident in seen:
+                        continue
+                    seen.add(ident)
+                    found.append(el)
+                except Exception:
+                    continue
+        return found
 
-    def wait_loaded(self, which: str, timeout=12):
+    def has_goods(self) -> bool:
+        if self.one_click_elements():
+            return True
+        text = self.page_text() or ""
+        if re.search(r"offerId\s*[：:]\s*\d+", text, re.I):
+            return True
+        if re.search(r"skuId\s*[：:]\s*\d+", text, re.I):
+            return True
+        return False
+
+    def wait_loaded(self, which: str, timeout=20):
         empty = self.empty_text(which)
         end = time.time() + timeout
         while time.time() < end:
-            if self.has_goods() or empty in self.page_text():
+            if self.has_goods():
                 return self
+            if empty in self.page_text() and not self.one_click_elements():
+                time.sleep(0.8)
+                if self.has_goods():
+                    return self
+                if empty in self.page_text():
+                    return self
             time.sleep(0.4)
         return self
 
@@ -63,20 +103,37 @@ class PalletPage(BasePage):
 
     def select_first(self, n: int = 1) -> int:
         self.dismiss_popups()
-        boxes = self.driver.find_elements(
-            By.CSS_SELECTOR, ".el-table__body .el-checkbox, .el-table__row .el-checkbox"
+        css_list = (
+            ".el-table__body .el-checkbox",
+            ".el-table__row .el-checkbox",
+            ".el-card .el-checkbox",
+            "[class*='card'] .el-checkbox",
+            "[class*='goods'] .el-checkbox",
         )
+        boxes = []
+        for css in css_list:
+            boxes.extend(self.driver.find_elements(By.CSS_SELECTOR, css))
+        if not boxes:
+            boxes = self.driver.find_elements(By.CSS_SELECTOR, ".el-checkbox")
         clicked = 0
         for box in boxes:
-            if not box.is_displayed():
+            try:
+                if not box.is_displayed():
+                    continue
+                cls = box.get_attribute("class") or ""
+                if "is-disabled" in cls:
+                    continue
+                parent_txt = (box.text or "") + (box.get_attribute("innerText") or "")
+                wrap = box.find_element(By.XPATH, "./ancestor::*[self::label or self::div][1]")
+                wrap_txt = (wrap.text or "") if wrap is not None else ""
+                if "全选" in parent_txt or "全选" in wrap_txt:
+                    continue
+                self.driver.execute_script("arguments[0].click();", box)
+                clicked += 1
+                if clicked >= n:
+                    break
+            except Exception:
                 continue
-            cls = box.get_attribute("class") or ""
-            if "is-disabled" in cls:
-                continue
-            self.driver.execute_script("arguments[0].click();", box)
-            clicked += 1
-            if clicked >= n:
-                break
         if clicked == 0:
             self.select_all()
         time.sleep(0.3)
@@ -136,7 +193,7 @@ class PalletPage(BasePage):
         return ""
 
     def click_wb_listing(self):
-        btns = [b for b in self.finds(self.ONE_CLICK) if b.is_displayed()]
+        btns = self.one_click_elements()
         if not btns:
             raise AssertionError("精选列表没有「一键刊登」")
         self.js_click(btns[0])
