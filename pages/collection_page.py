@@ -8,6 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 import config
 from pages.base_page import BasePage
+from utils.package_fields import parse_package
 
 
 class CollectionPage(BasePage):
@@ -96,6 +97,49 @@ class CollectionPage(BasePage):
         )
         time.sleep(0.6)
         return self
+
+    def first_card_text(self) -> str:
+        btns = [b for b in self.finds(self.ONE_CLICK) if b.is_displayed()]
+        if not btns:
+            return self.page_text()
+        try:
+            card = btns[0].find_element(
+                By.XPATH,
+                "./ancestor::*[contains(@class,'el-card') or contains(@class,'item') or self::div][1]",
+            )
+            return card.text or ""
+        except Exception:
+            return self.page_text()
+
+    def detail_text(self) -> str:
+        btns = [b for b in self.finds(self.DETAIL) if b.is_displayed()]
+        if not btns:
+            return ""
+        self.js_click(btns[0])
+        time.sleep(0.8)
+        blob = ""
+        for css in (".el-drawer", ".el-dialog", ".el-overlay-dialog"):
+            for el in self.driver.find_elements(By.CSS_SELECTOR, css):
+                if el.is_displayed() and (el.text or "").strip():
+                    blob = el.text
+                    break
+            if blob:
+                break
+        if not blob:
+            blob = self.page_text()
+        self.dismiss_popups()
+        time.sleep(0.2)
+        return blob
+
+    def source_package(self, fallback: dict | None = None) -> dict:
+        blob = f"{self.first_card_text()}\n{self.detail_text()}"
+        parsed = parse_package(blob)
+        if fallback and parsed["weight"] is None and all(d is None for d in parsed["dims"]):
+            return {
+                "weight": fallback.get("weight"),
+                "dims": list(fallback.get("dims") or [None, None, None]),
+            }
+        return parsed
 
     def click_origin_link(self):
         links = [a for a in self.finds(self.ORIGIN) if a.is_displayed()]

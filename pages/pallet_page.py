@@ -8,6 +8,7 @@ from selenium.webdriver.common.by import By
 
 import config
 from pages.base_page import BasePage
+from utils.package_fields import parse_package
 
 
 class PalletPage(BasePage):
@@ -192,16 +193,92 @@ class PalletPage(BasePage):
             return preferred[0].text
         return ""
 
+    def first_item_text(self) -> str:
+        btns = self.one_click_elements()
+        if not btns:
+            return self.page_text()
+        el = btns[0]
+        xps = (
+            "./ancestor::*[contains(@class,'el-card')][1]",
+            "./ancestor::tr[1]",
+            "./ancestor::*[contains(@class,'el-table__row')][1]",
+            "./ancestor::div[contains(@class,'item') or contains(@class,'goods')][1]",
+            "./ancestor::div[5]",
+        )
+        for xp in xps:
+            try:
+                node = el.find_element(By.XPATH, xp)
+                txt = (node.text or "").strip()
+                if txt:
+                    return txt
+            except Exception:
+                continue
+        return self.page_text()
+
+    def detail_text(self) -> str:
+        btns = [
+            b
+            for b in self.driver.find_elements(
+                By.XPATH, "//button[contains(normalize-space(), '查看详情')]"
+            )
+            if b.is_displayed()
+        ]
+        if not btns:
+            return ""
+        self.js_click(btns[0])
+        time.sleep(0.8)
+        blob = ""
+        for css in (".el-drawer", ".el-dialog"):
+            for el in self.driver.find_elements(By.CSS_SELECTOR, css):
+                if el.is_displayed() and (el.text or "").strip():
+                    blob = el.text
+                    break
+            if blob:
+                break
+        self.dismiss_popups()
+        time.sleep(0.2)
+        return blob
+
+    def source_package(self) -> dict:
+        return parse_package(f"{self.first_item_text()}\n{self.detail_text()}")
+
     def click_wb_listing(self):
         btns = self.one_click_elements()
         if not btns:
             raise AssertionError("精选列表没有「一键刊登」")
-        self.js_click(btns[0])
-        time.sleep(0.35)
-        items = [i for i in self.finds(self.MENU_WB) if i.is_displayed()]
+
+        def _area(el):
+            try:
+                s = el.size or {}
+                return max(1, int(s.get("width") or 0) * int(s.get("height") or 0))
+            except Exception:
+                return 10**9
+
+        btns.sort(key=_area)
+        trigger = btns[0]
+        for b in btns:
+            if (b.tag_name or "").lower() in ("button", "span", "a"):
+                trigger = b
+                break
+        self.js_click(trigger)
+        items = []
+        xps = (
+            "//li[@role='menuitem' and contains(., 'WB')]",
+            "//*[contains(@class,'el-dropdown-menu__item') and contains(., 'WB')]",
+            "//*[normalize-space()='WB 平台' or contains(normalize-space(), 'WB 平台')]",
+        )
+        end = time.time() + 4
+        while time.time() < end:
+            for xp in xps:
+                items = [i for i in self.driver.find_elements(By.XPATH, xp) if i.is_displayed()]
+                if items:
+                    break
+            if items:
+                break
+            time.sleep(0.2)
         if not items:
             raise AssertionError("未出现 WB 平台菜单")
-        self.js_click(items[0])
+        self.driver.execute_script("arguments[0].click();", items[0])
         self.wait.until(
             lambda d: "wb-one-click-listing" in (d.current_url or "")
         )

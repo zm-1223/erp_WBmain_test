@@ -21,6 +21,9 @@ WB_SHOP_PALLET_1688 = os.getenv(
 )
 
 OFFER_ID = "726638874254"
+# 该 offer 货源实测包装（刊登页带出应与此一致）
+SAMPLE_WEIGHT_KG = 0.8
+SAMPLE_DIMS_CM = (42.0, 32.0, 5.0)
 LINK_1688_SHORT = f"https://detail.1688.com/offer/{OFFER_ID}.html"
 LINK_1688_FULL = (
     "https://detail.1688.com/offer/726638874254.html?src=zhanwai&pid=301011_0000"

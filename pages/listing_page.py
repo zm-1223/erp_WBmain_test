@@ -9,6 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 import config
 from pages.base_page import BasePage
+from utils.package_fields import parse_number, same_num
 
 
 class ListingPage(BasePage):
@@ -79,6 +80,53 @@ class ListingPage(BasePage):
         item = self.form_item("产品类目")
         blob = (item.text if item is not None else "") + self.page_text()
         return "荐" in blob
+
+    def package_weight_raw(self) -> str:
+        els = [e for e in self.finds(self.WEIGHT) if e.is_displayed()]
+        if not els:
+            els = self.driver.find_elements(
+                By.XPATH, "//*[contains(normalize-space(),'包装重量')]/following::input[1]"
+            )
+            els = [e for e in els if e.is_displayed()]
+        if not els:
+            return ""
+        return (els[0].get_attribute("value") or "").strip()
+
+    def package_dim_raws(self) -> list[str]:
+        els = [e for e in self.finds(self.DIMS) if e.is_displayed()]
+        vals = []
+        for el in els[:3]:
+            vals.append((el.get_attribute("value") or "").strip())
+        while len(vals) < 3:
+            vals.append("")
+        return vals[:3]
+
+    def listing_package(self) -> dict:
+        return {
+            "weight": parse_number(self.package_weight_raw()),
+            "dims": [parse_number(x) for x in self.package_dim_raws()],
+        }
+
+    def assert_package_matches_source(self, entry: str, source: dict):
+        """刊登页带入值须与原商品一致：货源有则相等，货源无则刊登页留空。"""
+        src_w = source.get("weight")
+        src_d = list(source.get("dims") or [None, None, None])
+        while len(src_d) < 3:
+            src_d.append(None)
+        got = self.listing_package()
+        if not same_num(src_w, got["weight"]):
+            raise AssertionError(
+                f"{entry} 包装重量与原商品不一致: 货源={src_w!r} 刊登页={got['weight']!r}"
+                f"（原文={self.package_weight_raw()!r}）"
+            )
+        names = ("长", "宽", "高")
+        for i, name in enumerate(names):
+            if not same_num(src_d[i], got["dims"][i]):
+                raise AssertionError(
+                    f"{entry} 包装尺寸{name}与原商品不一致: 货源={src_d[i]!r} "
+                    f"刊登页={got['dims'][i]!r}（原文={self.package_dim_raws()!r}）"
+                )
+        return got
 
     def has_recommended_category(self) -> bool:
         """任一入口进入刊登/草稿编辑页后，类目应已预填且带「荐」。"""
