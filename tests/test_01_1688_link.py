@@ -106,3 +106,6 @@ class Test1688LinkCollect:
         assert config.OFFER_ID in text or config.OFFER_ID in listing_page.source_url_value()
         assert "标题" in text
         assert listing_page.steps_present()
+        assert listing_page.has_recommended_category(), (
+            f"1688链接进入刊登页未带推荐类目: {listing_page.category_value()!r}"
+        )

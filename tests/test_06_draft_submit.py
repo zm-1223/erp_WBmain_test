@@ -17,6 +17,9 @@ class TestDraftSubmit:
         collect_page.ensure_card()
         collect_page.click_wb_listing()
         listing_page.wait_open()
+        assert listing_page.has_recommended_category(), (
+            f"生成草稿前刊登页未带推荐类目: {listing_page.category_value()!r}"
+        )
         msg = listing_page.save_draft()
         assert "草稿" in msg or "草稿" in listing_page.page_text() or "publish" in listing_page.url()
         draft_page.open()
@@ -70,6 +73,9 @@ class TestDraftSubmit:
         listing_page.wait_open()
         assert listing_page.is_open()
         assert listing_page.cn_title_value() or listing_page.steps_present()
+        assert listing_page.has_recommended_category(), (
+            f"草稿编辑页未回填推荐类目: {listing_page.category_value()!r}"
+        )
 
     @allure.story("流程/取消")
     @allure.title("TC56 取消离开编辑页")
@@ -93,6 +99,9 @@ class TestDraftSubmit:
         assert listing_page.steps_present()
         assert listing_page.is_required("上架店铺")
         assert listing_page.is_required("选择仓库")
+        assert listing_page.has_recommended_category(), (
+            f"1688链接入口未带推荐类目: {listing_page.category_value()!r}"
+        )
 
         pallet_page.open("jd").wait_loaded("jd")
         if pallet_page.has_goods():
@@ -100,3 +109,38 @@ class TestDraftSubmit:
             listing_page.wait_open()
             assert listing_page.steps_present()
             assert listing_page.is_required("产品类目")
+            assert listing_page.has_recommended_category(), (
+                f"京东精选入口未带推荐类目: {listing_page.category_value()!r}"
+            )
+
+    @allure.story("带出/推荐类目")
+    @allure.title("TC58 各入口进入刊登页或草稿编辑页均自带推荐类目")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
+    def test_tc58_recommended_category_all_entries(
+        self, collect_page, pallet_page, listing_page, draft_page
+    ):
+        collect_page.ensure_card()
+        collect_page.click_wb_listing()
+        listing_page.wait_open()
+        assert listing_page.has_recommended_category(), (
+            f"1688链接刊登页无推荐类目: {listing_page.category_value()!r}"
+        )
+        listing_page.save_draft()
+        draft_page.open()
+        if "编辑" in draft_page.page_text():
+            draft_page.click_edit()
+            listing_page.wait_open()
+            assert listing_page.has_recommended_category(), (
+                f"草稿编辑页无推荐类目: {listing_page.category_value()!r}"
+            )
+
+        for key, name in (("1688", "1688精选"), ("jd", "京东精选"), ("tb", "淘宝精选")):
+            pallet_page.open(key).wait_loaded(key)
+            if not pallet_page.has_goods():
+                continue
+            pallet_page.click_wb_listing()
+            listing_page.wait_open()
+            assert listing_page.has_recommended_category(), (
+                f"{name}进入刊登页无推荐类目: {listing_page.category_value()!r}"
+            )

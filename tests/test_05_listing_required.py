@@ -40,6 +40,9 @@ class TestListingRequired:
         page = listing_from_1688
         assert page.is_required("产品类目")
         assert "类目" in page.page_text()
+        assert page.has_recommended_category(), (
+            f"刊登页类目应为推荐预填: {page.category_value()!r}"
+        )
 
     @allure.story("必填/标题二选一")
     @allure.title("TC30 中俄标题都为空应提示补填")

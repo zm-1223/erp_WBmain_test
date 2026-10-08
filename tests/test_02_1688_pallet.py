@@ -53,6 +53,9 @@ class Test1688Pallet:
         listing_page.wait_open()
         assert listing_page.is_open()
         assert listing_page.steps_present()
+        assert listing_page.has_recommended_category(), (
+            f"1688精选进入刊登页未带推荐类目: {listing_page.category_value()!r}"
+        )
 
     @allure.story("入口/批量草稿")
     @allure.title("TC13 勾选后批量生成草稿")

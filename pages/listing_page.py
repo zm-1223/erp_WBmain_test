@@ -34,6 +34,10 @@ class ListingPage(BasePage):
     PUBLISH = (By.XPATH, "//button[contains(@class,'el-button--success') and normalize-space()='一键刊登']")
     CANCEL = (By.XPATH, "//button[normalize-space()='取消']")
     EXPAND_ATTR = (By.XPATH, "//button[contains(., '展开更多属性')]")
+    CATEGORY_INPUT = (
+        By.CSS_SELECTOR,
+        "input[placeholder*='产品类目'], input[placeholder*='subject']",
+    )
 
     def is_open(self) -> bool:
         return "wb-one-click-listing" in self.url() or self.has_text("Wildberries 一键刊登")
@@ -60,6 +64,30 @@ class ListingPage(BasePage):
         if item is None:
             return False
         return "is-required" in (item.get_attribute("class") or "")
+
+    def category_value(self) -> str:
+        els = self.finds(self.CATEGORY_INPUT)
+        if not els:
+            item = self.form_item("产品类目")
+            if item is not None:
+                els = item.find_elements(By.CSS_SELECTOR, "input")
+        if not els:
+            return ""
+        return (els[0].get_attribute("value") or "").strip()
+
+    def has_recommend_badge(self) -> bool:
+        item = self.form_item("产品类目")
+        blob = (item.text if item is not None else "") + self.page_text()
+        return "荐" in blob
+
+    def has_recommended_category(self) -> bool:
+        """任一入口进入刊登/草稿编辑页后，类目应已预填且带「荐」。"""
+        value = self.category_value()
+        placeholder = "选择 Wildberries" in value or value in ("", "选择")
+        if placeholder and "当前类目" in self.page_text():
+            tail = self.page_text().split("当前类目", 1)[-1][:40]
+            placeholder = not any(ch in tail for ch in ("/", "服装", "用品", "电子"))
+        return (not placeholder) and self.has_recommend_badge()
 
     def required_labels(self) -> list[str]:
         items = self.driver.find_elements(By.CSS_SELECTOR, ".el-form-item.is-required")

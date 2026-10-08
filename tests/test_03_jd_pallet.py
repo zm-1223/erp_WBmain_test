@@ -81,6 +81,9 @@ class TestJdPallet:
         src = listing_page.source_url_value() + listing_page.page_text()
         assert listing_page.steps_present()
         assert src
+        assert listing_page.has_recommended_category(), (
+            f"京东精选进入刊登页未带推荐类目: {listing_page.category_value()!r}"
+        )
 
     @allure.story("入口/目标店铺")
     @allure.title("TC20 目标店铺含 WB 与 OZON")
