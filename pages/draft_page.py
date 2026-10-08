@@ -28,6 +28,19 @@ class DraftPage(BasePage):
         m = re.search(r"全部\s*(\d+)", self.page_text())
         return int(m.group(1)) if m else 0
 
+    def ready_count(self) -> int:
+        m = re.search(r"可刊登\s*(\d+)", self.page_text())
+        return int(m.group(1)) if m else 0
+
+    def click_validate(self):
+        btns = [b for b in self.finds(self.VALIDATE) if b.is_displayed()]
+        if not btns:
+            raise AssertionError("没有「批量校验」")
+        self.js_click(btns[0])
+        self.confirm_popups()
+        time.sleep(2.2)
+        return self.toast() or self.page_text()
+
     def first_row_text(self) -> str:
         rows = self.driver.find_elements(By.CSS_SELECTOR, ".el-table__body tr, tbody tr")
         for r in rows:
@@ -35,7 +48,7 @@ class DraftPage(BasePage):
                 return r.text
         return self.page_text()
 
-    def wait_origin(self, keyword: str, timeout: int = 20) -> str:
+    def wait_origin(self, keyword: str, timeout: int = 30) -> str:
         end = time.time() + timeout
         last = ""
         while time.time() < end:
@@ -45,6 +58,17 @@ class DraftPage(BasePage):
             time.sleep(0.8)
             self.open()
         raise AssertionError(f"草稿箱未出现来源「{keyword}」: {last[:500]}")
+
+    def wait_all_count_at_least(self, n: int, timeout: int = 25) -> int:
+        end = time.time() + timeout
+        last = 0
+        while time.time() < end:
+            last = self.all_count()
+            if last >= n:
+                return last
+            time.sleep(0.8)
+            self.open()
+        raise AssertionError(f"草稿箱条数未增加，当前全部={last} 期望>={n}")
 
     def click_edit_for_origin(self, keyword: str):
         rows = self.driver.find_elements(By.CSS_SELECTOR, ".el-table__body tr, tbody tr")

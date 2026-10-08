@@ -77,8 +77,18 @@ class CollectionPage(BasePage):
         btns = [b for b in self.finds(self.ONE_CLICK) if b.is_displayed()]
         if not btns:
             raise AssertionError("未找到「一键刊登」")
-        self.js_click(btns[0])
-        time.sleep(0.35)
+        self.dismiss_popups()
+        self.raw_click(btns[0])
+        end = time.time() + 4
+        while time.time() < end:
+            items = [
+                i
+                for i in self.driver.find_elements(By.XPATH, "//li[@role='menuitem']")
+                if i.is_displayed()
+            ]
+            if items:
+                return self
+            time.sleep(0.15)
         return self
 
     def listing_menu_texts(self) -> list[str]:
@@ -88,28 +98,45 @@ class CollectionPage(BasePage):
 
     def click_wb_listing(self):
         self.open_one_click_menu()
-        items = [i for i in self.finds(self.MENU_WB) if i.is_displayed()]
-        if not items:
+        if not self.click_menu_item(("WB 平台", "WB"), timeout=5):
             raise AssertionError("一键刊登下拉未出现「WB 平台」")
-        self.js_click(items[0])
         WebDriverWait(self.driver, config.PULL_WAIT).until(
             lambda d: "wb-one-click-listing" in (d.current_url or "")
         )
         time.sleep(0.6)
         return self
 
+    def click_ozon_listing(self):
+        self.open_one_click_menu()
+        if not self.click_menu_item(("Ozon 平台", "Ozon", "OZON"), timeout=5):
+            raise AssertionError("一键刊登下拉未出现「Ozon 平台」")
+        time.sleep(1.2)
+        return self.toast() or self.page_text() or self.url()
+
+    def source_snapshot(self) -> dict:
+        from utils.source_card import parse_source_card
+
+        return parse_source_card(self.first_card_text())
+
     def first_card_text(self) -> str:
         btns = [b for b in self.finds(self.ONE_CLICK) if b.is_displayed()]
         if not btns:
             return self.page_text()
-        try:
-            card = btns[0].find_element(
-                By.XPATH,
-                "./ancestor::*[contains(@class,'el-card') or contains(@class,'item') or self::div][1]",
-            )
-            return card.text or ""
-        except Exception:
-            return self.page_text()
+        xps = (
+            "./ancestor::*[contains(@class,'el-card')][1]",
+            "./ancestor::*[contains(@class,'goods')][1]",
+            "./ancestor::div[contains(@class,'item')][1]",
+            "./ancestor::div[8]",
+        )
+        best = ""
+        for xp in xps:
+            try:
+                txt = (btns[0].find_element(By.XPATH, xp).text or "").strip()
+            except Exception:
+                continue
+            if len(txt) > len(best):
+                best = txt
+        return best or self.page_text()
 
     def detail_text(self) -> str:
         btns = [b for b in self.finds(self.DETAIL) if b.is_displayed()]

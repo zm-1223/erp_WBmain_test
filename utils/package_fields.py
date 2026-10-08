@@ -51,6 +51,14 @@ def parse_package(text: str) -> dict:
     return {"weight": weight, "dims": dims}
 
 
+def package_visible(pkg: dict) -> bool:
+    if not pkg:
+        return False
+    if pkg.get("weight") is not None:
+        return True
+    return any(x is not None for x in (pkg.get("dims") or []))
+
+
 def same_num(a, b, abs_tol: float = 0.05) -> bool:
     if a is None and b is None:
         return True

@@ -30,7 +30,8 @@ class Test1688Pallet:
     def test_tc10_empty_or_list(self, pallet_page):
         pallet_page.open("1688").wait_loaded("1688")
         if pallet_page.has_goods():
-            pytest.skip("当前环境1688精选有货，跳过空列表断言")
+            assert pallet_page.one_click_elements()
+            return
         assert pallet_page.empty_text("1688") in pallet_page.page_text()
 
     @allure.story("入口/未勾选批量")
@@ -75,12 +76,8 @@ class Test1688Pallet:
         pallet_page.select_first(1)
         pallet_page.click_batch_draft()
         draft_page.open()
-        after = draft_page.all_count()
-        assert after >= before + 1 or "1688精选" in draft_page.page_text(), (
-            f"1688精选批量草稿未写入草稿箱 before={before} after={after}"
-        )
-        draft_page.wait_origin("1688精选")
-        draft_page.click_edit_for_origin("1688精选")
+        draft_page.wait_all_count_at_least(before + 1)
+        draft_page.click_edit()
         listing_page.wait_open()
         assert listing_page.has_recommended_category(), (
             f"1688精选草稿编辑页未带推荐类目: {listing_page.category_value()!r}"

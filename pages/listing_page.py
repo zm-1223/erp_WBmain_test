@@ -310,12 +310,36 @@ class ListingPage(BasePage):
         return self
 
     def delete_all_images(self):
+        for label in ("全选图片", "全选"):
+            btns = [
+                b
+                for b in self.driver.find_elements(
+                    By.XPATH, f"//button[contains(normalize-space(), {self.quote(label)})]"
+                )
+                if b.is_displayed()
+            ]
+            if btns:
+                self.js_click(btns[0])
+                time.sleep(0.2)
+                break
         buttons = self.driver.find_elements(By.XPATH, "//button[normalize-space()='删除']")
-        for b in buttons[:8]:
+        for b in buttons[:12]:
             if b.is_displayed():
                 try:
                     self.js_click(b)
-                    time.sleep(0.15)
+                    time.sleep(0.12)
+                except Exception:
+                    pass
+        for css in (
+            ".el-upload-list__item-delete",
+            ".el-icon-delete",
+            ".el-icon-close",
+            ".el-upload-list__item .el-icon-close",
+        ):
+            for ic in self.driver.find_elements(By.CSS_SELECTOR, css):
+                try:
+                    if ic.is_displayed():
+                        self.driver.execute_script("arguments[0].click();", ic)
                 except Exception:
                     pass
         return self
@@ -326,13 +350,72 @@ class ListingPage(BasePage):
     def note_optional(self) -> bool:
         return bool(self.finds(self.SOURCE_NOTE)) or self.has_text("非必填")
 
+    def collect_price_value(self) -> str:
+        for loc in (
+            (By.XPATH, "//*[contains(normalize-space(),'采集价')]/following::input[1]"),
+            (By.CSS_SELECTOR, "input[placeholder*='采集价']"),
+        ):
+            els = [e for e in self.driver.find_elements(*loc) if e.is_displayed()]
+            if els:
+                return (els[0].get_attribute("value") or "").strip()
+        return ""
+
+    def listing_price_value(self) -> str:
+        prices = self.listing_prices()
+        if not prices:
+            return ""
+        return (prices[0].get_attribute("value") or "").strip()
+
+    def image_count(self) -> int:
+        n = 0
+        for im in self.driver.find_elements(By.CSS_SELECTOR, "img"):
+            try:
+                if not im.is_displayed():
+                    continue
+            except Exception:
+                continue
+            src = (im.get_attribute("src") or "") + (im.get_attribute("alt") or "")
+            if "http" in src or "data:" in src:
+                n += 1
+        return n
+
+    def sku_row_count(self) -> int:
+        return len([e for e in self.finds(self.RU_SIZE) if e.is_displayed()])
+
+    def map_first_colors(self, n: int = 8) -> int:
+        boxes = self.driver.find_elements(By.XPATH, "//input[@placeholder='搜索并选择']")
+        mapped = 0
+        for el in boxes:
+            if mapped >= n:
+                break
+            try:
+                if not el.is_displayed():
+                    continue
+            except Exception:
+                continue
+            self.raw_click(el)
+            time.sleep(0.3)
+            opts = [
+                o
+                for o in self.driver.find_elements(
+                    By.CSS_SELECTOR, ".el-select-dropdown__item, [role='option']"
+                )
+                if o.is_displayed() and (o.text or "").strip()
+            ]
+            if not opts:
+                continue
+            self.driver.execute_script("arguments[0].click();", opts[0])
+            mapped += 1
+            time.sleep(0.15)
+        return mapped
+
     def save_draft(self):
         btns = [b for b in self.finds(self.SAVE_DRAFT) if b.is_displayed()]
         if not btns:
             raise AssertionError("未找到「生成刊登草稿」")
         self.js_click(btns[0])
         time.sleep(1.2)
-        return self.toast() or self.page_text()
+        return self.toast() or self.popup_text() or self.page_text()
 
     def click_publish(self):
         btns = [b for b in self.finds(self.PUBLISH) if b.is_displayed()]

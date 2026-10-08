@@ -157,7 +157,7 @@ class TestListingRequired:
         assert "商品主图" in page.page_text()
         page.delete_all_images()
         msg = page.save_draft() + page.page_text()
-        assert msg
+        assert any(k in msg for k in ("图片", "主图", "拦截", "草稿", "完善", "补")), msg[:400]
         collect_page.ensure_card()
         collect_page.click_wb_listing()
         listing_page.wait_open()
@@ -168,7 +168,8 @@ class TestListingRequired:
     @pytest.mark.p1
     def test_tc42_image_transfer(self, listing_from_1688):
         text = listing_from_1688.page_text()
-        assert any(k in text for k in ("自动转存", "素材", "商品主图", "图片"))
+        assert any(k in text for k in ("自动转存", "转存中", "转存成功", "素材区")), text[:500]
+        assert listing_from_1688.image_count() >= 1
 
     @allure.story("必填/俄罗斯尺码")
     @allure.title("TC43 俄罗斯尺码列为必填")
@@ -198,7 +199,7 @@ class TestListingRequired:
         try:
             page.clear_first_price()
             msg = page.save_draft()
-            assert msg is not None
+            assert any(k in (msg or "") for k in ("刊登价", "价格", "补", "草稿", "完善")), (msg or "")[:400]
         finally:
             collect_page.ensure_card()
             collect_page.click_wb_listing()

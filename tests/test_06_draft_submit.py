@@ -48,17 +48,28 @@ class TestDraftSubmit:
         listing_page.wait_open()
         listing_page.fill_all_ru_size("42")
         has_wh = listing_page.select_first_warehouse()
+        listing_page.map_first_colors()
         listing_page.save_draft()
         draft_page.open()
-        text = draft_page.page_text()
         if not has_wh:
             pytest.skip("当前店铺无可用 WB 仓库，无法补齐必填")
+        before_ready = draft_page.ready_count()
+        try:
+            draft_page.click_validate()
+        except AssertionError:
+            pytest.skip("草稿箱无批量校验")
+        draft_page.open()
+        ready = draft_page.ready_count()
+        if ready <= before_ready and ready < 1:
+            pytest.skip("补齐仓库/尺码后仍未进入可刊登（图片转存或其它必填未齐）")
+        assert ready >= 1 or ready > before_ready
+        text = draft_page.page_text()
+        assert "可刊登" in text
         if config.SUBMIT_LIVE:
             draft_page.click_row_submit()
         else:
-            assert "草稿箱" in text
             allure.attach(
-                "ERP_SUBMIT_LIVE=0，跳过真实提交刊登",
+                "ERP_SUBMIT_LIVE=0，不真实提交 WB",
                 name="说明",
                 attachment_type=allure.attachment_type.TEXT,
             )

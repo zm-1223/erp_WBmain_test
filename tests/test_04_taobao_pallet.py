@@ -28,7 +28,8 @@ class TestTaobaoPallet:
     def test_tc23_empty_or_list(self, pallet_page):
         pallet_page.open("tb").wait_loaded("tb")
         if pallet_page.has_goods():
-            pytest.skip("当前环境淘宝精选有货，跳过空列表断言")
+            assert pallet_page.one_click_elements()
+            return
         assert pallet_page.empty_text("tb") in pallet_page.page_text()
 
     @allure.story("入口/未勾选批量")

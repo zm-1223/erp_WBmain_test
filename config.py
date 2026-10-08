@@ -11,6 +11,7 @@ LOG_DIR = REPORTS_DIR / "logs"
 
 BASE_URL = os.getenv("ERP_BASE_URL", "https://russtar.wildberries.center")
 USERNAME = os.getenv("ERP_USERNAME", "luojiaxing1")
+# 优先用环境变量，避免把真实密码写进公开仓库
 PASSWORD = os.getenv("ERP_PASSWORD", "ZYJK123456")
 
 WB_SHOP_NAME = os.getenv("ERP_WB_SHOP", "天津智云电子商务有限公司")

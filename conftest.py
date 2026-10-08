@@ -80,7 +80,10 @@ def draft_page(driver):
 
 
 @pytest.fixture(autouse=True)
-def _dismiss_popups_before_test(driver):
+def _dismiss_popups_before_test(request):
+    if request.node.get_closest_marker("no_browser"):
+        return
+    driver = request.getfixturevalue("driver")
     BasePage(driver).dismiss_popups()
     page_logger.info("用例开始，已尝试兜底关弹窗")
 
@@ -93,12 +96,11 @@ def on_collect(collect_page):
 
 @pytest.fixture
 def listing_from_1688(collect_page, listing_page):
-    """从1688卡片进入刊登编辑页。仅当 URL 含 wb-one-click-listing 才复用，避免草稿箱误判。"""
-    if not listing_page.is_open():
-        page_logger.info("当前不在刊登编辑页 url=%s，重新从1688进入", listing_page.url())
-        collect_page.ensure_card()
-        collect_page.click_wb_listing()
-        listing_page.wait_open()
+    """每次从1688卡片重新进入刊登编辑页，避免上一例改过的脏表单。"""
+    page_logger.info("重新从1688进入刊登页，避免复用脏表单")
+    collect_page.ensure_card()
+    collect_page.click_wb_listing()
+    listing_page.wait_open()
     return listing_page
 
 

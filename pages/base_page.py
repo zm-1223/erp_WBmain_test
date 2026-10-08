@@ -139,6 +139,58 @@ class BasePage:
             time.sleep(0.2)
         return False
 
+    def cancel_popups(self, timeout=3):
+        """业务确认框点「取消」，无框返回 False。"""
+        end = time.time() + timeout
+        xp = (
+            "//div[contains(@class,'el-message-box') or contains(@class,'el-dialog')]"
+            "//button[normalize-space()='取消' or normalize-space()='否']"
+        )
+        while time.time() < end:
+            try:
+                btns = [b for b in self.driver.find_elements(By.XPATH, xp) if b.is_displayed()]
+                if btns:
+                    self.driver.execute_script("arguments[0].click();", btns[0])
+                    logger.info("取消弹窗")
+                    time.sleep(0.2)
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.15)
+        return False
+
+    def raw_click(self, el):
+        """点击且不先 dismiss，避免关掉刚打开的下拉菜单。"""
+        logger.info("点击元素")
+        try:
+            self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
+            time.sleep(0.1)
+            el.click()
+        except (ElementClickInterceptedException, StaleElementReferenceException):
+            self.driver.execute_script("arguments[0].click();", el)
+
+    def click_menu_item(self, keywords: tuple[str, ...], timeout=5):
+        xps = []
+        for kw in keywords:
+            xps.append(f"//li[@role='menuitem' and contains(., {self.quote(kw)})]")
+            xps.append(
+                f"//*[contains(@class,'el-dropdown-menu__item') and contains(., {self.quote(kw)})]"
+            )
+            xps.append(
+                "//div[contains(@class,'el-dropdown-menu') or contains(@class,'el-popper')]"
+                f"//*[contains(normalize-space(), {self.quote(kw)})]"
+            )
+        end = time.time() + timeout
+        while time.time() < end:
+            for xp in xps:
+                items = [i for i in self.driver.find_elements(By.XPATH, xp) if i.is_displayed()]
+                if items:
+                    self.driver.execute_script("arguments[0].click();", items[0])
+                    time.sleep(0.25)
+                    return True
+            time.sleep(0.15)
+        return False
+
     def js_click(self, el):
         self.dismiss_popups()
         logger.info("点击元素")
@@ -197,6 +249,26 @@ class BasePage:
                 return last
             time.sleep(0.2)
         return last
+
+    def popup_text(self, timeout=3) -> str:
+        """读取当前确认框/提示框原文，不点击。"""
+        end = time.time() + timeout
+        css = (
+            ".el-message-box__message, .el-message-box, .el-dialog__body, "
+            ".el-form-item__error, .el-message__content"
+        )
+        while time.time() < end:
+            parts = []
+            for el in self.driver.find_elements(By.CSS_SELECTOR, css):
+                try:
+                    if el.is_displayed() and (el.text or "").strip():
+                        parts.append(el.text.strip())
+                except Exception:
+                    continue
+            if parts:
+                return "\n".join(parts)
+            time.sleep(0.15)
+        return ""
 
     def goto_hash(self, hash_path: str, keyword: str | None = None):
         """同域只改 hash，不重新打开站点。"""

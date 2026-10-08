@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 import time
 
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 
 import config
@@ -18,6 +20,7 @@ class PalletPage(BasePage):
     BATCH_DRAFT = (By.XPATH, "//button[normalize-space()='批量生成草稿']")
     SELECT_ALL = (By.XPATH, "//*[normalize-space()='本页全选']")
     ONE_CLICK = (By.XPATH, "//button[normalize-space()='一键刊登']")
+    ONE_CLICK_BTN = (By.XPATH, "//button[contains(normalize-space(), '一键刊登')]")
     ONE_CLICK_LOCS = (
         (By.XPATH, "//button[contains(normalize-space(), '一键刊登')]"),
         (By.XPATH, "//*[contains(@class,'el-dropdown') and contains(., '一键刊登')]"),
@@ -85,22 +88,36 @@ class PalletPage(BasePage):
         end = time.time() + timeout
         while time.time() < end:
             if self.has_goods():
+                self._wait_one_click_clickable(timeout=8)
                 return self
             if empty in self.page_text() and not self.one_click_elements():
                 time.sleep(0.8)
                 if self.has_goods():
+                    self._wait_one_click_clickable(timeout=8)
                     return self
                 if empty in self.page_text():
                     return self
             time.sleep(0.4)
         return self
 
+    def _wait_one_click_clickable(self, timeout=15):
+        try:
+            return self.clickable(self.ONE_CLICK_BTN, timeout)
+        except TimeoutException:
+            els = [b for b in self.one_click_elements() if b.is_displayed()]
+            if els:
+                return els[0]
+            raise AssertionError("一键刊登按钮未出现或不可点击")
+
     def click_batch_draft(self, confirm: bool = True):
         self.button("批量生成草稿")
+        tip = self.popup_text(timeout=2) or self.toast()
         if confirm:
             self.confirm_popups()
+        else:
+            self.cancel_popups()
         time.sleep(0.8)
-        return self.toast() or self.page_text()
+        return tip or self.toast() or self.page_text()
 
     def select_first(self, n: int = 1) -> int:
         self.dismiss_popups()
@@ -242,48 +259,156 @@ class PalletPage(BasePage):
     def source_package(self) -> dict:
         return parse_package(f"{self.first_item_text()}\n{self.detail_text()}")
 
-    def click_wb_listing(self):
-        btns = self.one_click_elements()
-        if not btns:
-            raise AssertionError("精选列表没有「一键刊登」")
-
-        def _area(el):
-            try:
-                s = el.size or {}
-                return max(1, int(s.get("width") or 0) * int(s.get("height") or 0))
-            except Exception:
-                return 10**9
-
-        btns.sort(key=_area)
-        trigger = btns[0]
-        for b in btns:
-            if (b.tag_name or "").lower() in ("button", "span", "a"):
-                trigger = b
-                break
-        self.js_click(trigger)
+    def _visible_dropdown_items(self):
         items = []
-        xps = (
-            "//li[@role='menuitem' and contains(., 'WB')]",
-            "//*[contains(@class,'el-dropdown-menu__item') and contains(., 'WB')]",
-            "//*[normalize-space()='WB 平台' or contains(normalize-space(), 'WB 平台')]",
+        locators = (
+            (By.CSS_SELECTOR, ".el-popper[aria-hidden='false'] li"),
+            (By.CSS_SELECTOR, ".el-popper[aria-hidden='false'] .el-dropdown-menu__item"),
+            (By.XPATH, "//li[@role='menuitem']"),
+            (By.CSS_SELECTOR, ".el-dropdown-menu__item"),
         )
-        end = time.time() + 4
+        seen = set()
+        for loc in locators:
+            for el in self.driver.find_elements(*loc):
+                try:
+                    if not el.is_displayed():
+                        continue
+                    ident = el.id
+                    if ident in seen:
+                        continue
+                    seen.add(ident)
+                    if (el.text or "").strip():
+                        items.append(el)
+                except Exception:
+                    continue
+        return items
+
+    def _dropdown_open(self) -> bool:
+        if self._visible_dropdown_items():
+            return True
+        return bool(
+            self.driver.execute_script(
+                """
+                const nodes = [...document.querySelectorAll(
+                  '.el-popper, .el-dropdown-menu, [role=menu], li[role=menuitem], .el-dropdown-menu__item'
+                )];
+                return nodes.some((n) => {
+                  if (n.getAttribute('aria-hidden') === 'true') return false;
+                  const st = getComputedStyle(n);
+                  if (st.display === 'none' || st.visibility === 'hidden') return false;
+                  const r = n.getBoundingClientRect();
+                  if (r.width < 8 || r.height < 8) return false;
+                  return /WB|Wildberries|Ozon|OZON|平台/.test(n.innerText || '');
+                });
+                """
+            )
+        )
+
+    def _wait_dropdown(self, timeout=5):
+        end = time.time() + timeout
         while time.time() < end:
-            for xp in xps:
-                items = [i for i in self.driver.find_elements(By.XPATH, xp) if i.is_displayed()]
-                if items:
-                    break
-            if items:
-                break
-            time.sleep(0.2)
-        if not items:
+            if self._dropdown_open():
+                return self._visible_dropdown_items()
+            time.sleep(0.12)
+        return []
+
+    def _one_click_trigger_el(self):
+        el = self.driver.execute_script(
+            """
+            const btns = [...document.querySelectorAll('button')].filter((b) =>
+              b.offsetParent && (b.innerText || '').includes('一键刊登')
+            );
+            if (!btns.length) return null;
+            btns.sort((a, b) =>
+              (a.offsetWidth * a.offsetHeight) - (b.offsetWidth * b.offsetHeight)
+            );
+            return btns[0];
+            """
+        )
+        if el is not None:
+            return el
+        return self._wait_one_click_clickable(timeout=15)
+
+    def _trigger_one_click(self, el, mode: str):
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
+        time.sleep(0.12)
+        if mode == "hover":
+            ActionChains(self.driver).move_to_element(el).pause(0.4).perform()
+            return
+        if mode == "caret":
+            try:
+                caret = el.find_element(
+                    By.XPATH,
+                    "./ancestor::div[contains(@class,'el-dropdown')][1]"
+                    "//button[contains(@class,'el-dropdown__caret-button')]",
+                )
+                ActionChains(self.driver).move_to_element(caret).pause(0.1).click().perform()
+                return
+            except Exception:
+                pass
+        try:
+            ActionChains(self.driver).move_to_element(el).pause(0.15).click().perform()
+        except Exception:
+            self.raw_click(el)
+
+    def open_one_click_menu(self):
+        """等按钮可点后依次 click / hover / 箭头，再等下拉出现。"""
+        self.dismiss_popups()
+        time.sleep(0.15)
+        for mode in ("click", "hover", "caret"):
+            el = self._one_click_trigger_el()
+            self._trigger_one_click(el, mode)
+            if self._wait_dropdown(4):
+                return self
+        return self
+
+    def _click_one_click_trigger(self):
+        return self.open_one_click_menu()
+
+    def _pick_menu(self, keywords: tuple[str, ...]) -> bool:
+        for el in self._visible_dropdown_items():
+            text = el.text or ""
+            if any(k in text for k in keywords):
+                self.driver.execute_script("arguments[0].click();", el)
+                time.sleep(0.25)
+                return True
+        return self.click_menu_item(keywords, timeout=6)
+
+    def click_wb_listing(self):
+        keywords = ("WB 平台", "WB平台", "Wildberries")
+        self.open_one_click_menu()
+        if not self._pick_menu(keywords):
             raise AssertionError("未出现 WB 平台菜单")
-        self.driver.execute_script("arguments[0].click();", items[0])
         self.wait.until(
             lambda d: "wb-one-click-listing" in (d.current_url or "")
         )
         time.sleep(0.6)
         return self
+
+    def click_ozon_listing(self):
+        self.open_one_click_menu()
+        if not self._pick_menu(("Ozon 平台", "Ozon", "OZON")):
+            raise AssertionError("未出现 Ozon 平台菜单")
+        time.sleep(1.2)
+        return self.toast() or self.page_text() or self.url()
+
+    def choose_ozon_shop(self):
+        self.shop_options()
+        items = self.driver.find_elements(
+            By.CSS_SELECTOR, ".el-select-dropdown__item, [role='option']"
+        )
+        for o in items:
+            t = (o.text or "").strip()
+            if o.is_displayed() and t and "OZON" in t.upper():
+                self.js_click(o)
+                time.sleep(0.3)
+                return t
+        return ""
+
+    def source_snapshot(self) -> dict:
+        from utils.source_card import parse_source_card
+
+        return parse_source_card(self.first_item_text())
 
     def click_view_source(self):
         links = [a for a in self.finds(self.VIEW_SOURCE) if a.is_displayed()]
