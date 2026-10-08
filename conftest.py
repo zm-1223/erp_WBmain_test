@@ -128,10 +128,7 @@ def ozon_listing_from_1688(collect_page, ozon_listing_page):
     page_logger.info("重新从1688进入 Ozon 刊登页，避免复用脏表单")
     collect_page.ensure_card()
     collect_page.click_ozon_listing()
-    try:
-        ozon_listing_page.wait_open()
-    except Exception:
-        pytest.skip("未进入 Ozon 刊登页（需 OZON 店铺或平台入口）")
+    ozon_listing_page.wait_open()
     return ozon_listing_page
 
 

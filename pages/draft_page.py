@@ -59,7 +59,7 @@ class DraftPage(BasePage):
                 return r.text
         return self.page_text()
 
-    def wait_origin(self, keyword: str, timeout: int = 30) -> str:
+    def wait_origin(self, keyword: str, timeout: int = 30, ozon: bool = False) -> str:
         end = time.time() + timeout
         last = ""
         while time.time() < end:
@@ -67,10 +67,13 @@ class DraftPage(BasePage):
             if keyword in last:
                 return last
             time.sleep(0.8)
-            self.open()
+            if ozon:
+                self.open_ozon()
+            else:
+                self.open()
         raise AssertionError(f"草稿箱未出现来源「{keyword}」: {last[:500]}")
 
-    def wait_all_count_at_least(self, n: int, timeout: int = 25) -> int:
+    def wait_all_count_at_least(self, n: int, timeout: int = 25, ozon: bool = False) -> int:
         end = time.time() + timeout
         last = 0
         while time.time() < end:
@@ -78,7 +81,10 @@ class DraftPage(BasePage):
             if last >= n:
                 return last
             time.sleep(0.8)
-            self.open()
+            if ozon:
+                self.open_ozon()
+            else:
+                self.open()
         raise AssertionError(f"草稿箱条数未增加，当前全部={last} 期望>={n}")
 
     def click_edit_for_origin(self, keyword: str):

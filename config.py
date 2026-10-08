@@ -44,6 +44,8 @@ OZON_LISTING_URL_MARKS = (
     "ozon-one-click-listing",
     "ozon-one-click",
     "ozon-listing",
+    "ozon-publish",
+    "ozonlisting",
 )
 
 OZON_SHOP_NAME = os.getenv("ERP_OZON_SHOP", "OZON")

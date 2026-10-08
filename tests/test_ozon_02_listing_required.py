@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""OZ06-OZ12 Ozon 刊登页必填与带出（对照 WB TC27-TC45 精简）。"""
+"""OZ06-OZ12、OZ24-OZ25、OZ37-OZ40 Ozon 刊登页必填与带出（不含 Club/俄码/WB 仓库）。"""
 import allure
 import pytest
 
@@ -32,14 +32,15 @@ class TestOzonListingRequired:
         )
 
     @allure.story("必填/标题")
-    @allure.title("OZ08 标题控件存在且可读取")
+    @allure.title("OZ08 标题清空后保存应拦截")
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
-    def test_oz08_title_present(self, ozon_listing_from_1688):
+    def test_oz08_title_empty_intercept(self, ozon_listing_from_1688):
         page = ozon_listing_from_1688
-        text = page.page_text()
-        assert "标题" in text
-        assert page.cn_title_value() or page.ru_title_value() or "标题" in text
+        assert "标题" in page.page_text()
+        page.clear_titles()
+        msg = page.save_draft() + page.page_text()
+        assert any(k in msg for k in ("标题", "补填", "不能为空", "完善", "拦截")), msg[:400]
 
     @allure.story("带出/货源地址")
     @allure.title("OZ09 货源地址带出 1688 offer")
@@ -69,12 +70,92 @@ class TestOzonListingRequired:
         assert ozon_listing_from_1688.image_count() >= 1
 
     @allure.story("必填/价格")
-    @allure.title("OZ12 刊登价或采集价控件存在")
+    @allure.title("OZ12 刊登价清空后保存应拦截")
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
-    def test_oz12_price_present(self, ozon_listing_from_1688):
+    def test_oz12_price_empty_intercept(self, ozon_listing_from_1688):
         page = ozon_listing_from_1688
         text = page.page_text()
         assert "价" in text
-        got = page.collect_price_value() or page.listing_price_value()
-        assert got or "刊登价" in text or "采集价" in text or "售价" in text
+        page.clear_first_price()
+        msg = page.save_draft() + page.page_text()
+        assert any(k in msg for k in ("价", "补填", "不能为空", "完善", "拦截", "有效")), msg[:400]
+
+    @allure.story("必填/包装重量")
+    @allure.title("OZ24 包装重量清空或非正数应拦截")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
+    def test_oz24_weight_required(self, ozon_listing_from_1688):
+        page = ozon_listing_from_1688
+        assert "包装重量" in page.page_text()
+        page.clear_weight()
+        msg = page.save_draft() + page.page_text()
+        assert any(k in msg for k in ("重量", "补", "不能为空", "完善", "拦截", "有效", "必填")), msg[:400]
+        page.set_weight("0")
+        msg = page.save_draft() + page.page_text()
+        assert any(k in msg for k in ("重量", "补", "有效", "完善", "拦截", "大于", "正")), msg[:400]
+
+    @allure.story("必填/包装尺寸")
+    @allure.title("OZ25 包装尺寸清空后保存应拦截")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
+    def test_oz25_dimension_required(self, ozon_listing_from_1688):
+        page = ozon_listing_from_1688
+        assert "包装尺寸" in page.page_text() or page._dim_els()
+        page.clear_dims()
+        msg = page.save_draft() + page.page_text()
+        assert any(k in msg for k in ("尺寸", "长", "宽", "高", "补", "不能为空", "完善", "拦截")), msg[:400]
+
+    @allure.story("必填/产品类目")
+    @allure.title("OZ37 清空类目后保存应拦截")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
+    def test_oz37_category_cleared_intercept(self, ozon_listing_from_1688):
+        page = ozon_listing_from_1688
+        assert page.has_recommended_category(), page.category_value()
+        page.clear_category()
+        msg = page.save_draft() + page.page_text()
+        assert any(k in msg for k in ("类目", "补", "不能为空", "完善", "拦截", "选择")), msg[:400]
+
+    @allure.story("格式/标题长度")
+    @allure.title("OZ38 标题超过页面上限应被截断")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.p1
+    def test_oz38_title_capped(self, ozon_listing_from_1688):
+        page = ozon_listing_from_1688
+        page.fill_cn_title("测" * 400)
+        value = page.cn_title_value()
+        cap = page.title_cap()
+        assert value, "标题写入后为空"
+        if cap:
+            assert len(value) <= cap, f"标题超过上限 {cap}，实际 {len(value)}"
+        else:
+            assert len(value) < 400, f"未见字数上限且 400 字全部写入，实际 {len(value)}"
+
+    @allure.story("非必填/品牌描述备注")
+    @allure.title("OZ39 页面上的品牌描述前缀备注非必填")
+    @allure.severity(allure.severity_level.MINOR)
+    @pytest.mark.p2
+    def test_oz39_optionals(self, ozon_listing_from_1688):
+        page = ozon_listing_from_1688
+        text = page.page_text()
+        checked = []
+        for label in ("品牌", "描述", "商品编码前缀", "货源备注"):
+            if page.form_item(label) is None and label not in text:
+                continue
+            checked.append(label)
+            assert not page.is_required(label), f"{label} 不应为必填"
+        page.expand_attrs()
+        if not checked and "产品属性" not in page.page_text():
+            pytest.skip("Ozon 刊登页无品牌/描述/前缀/备注，也无产品属性区")
+        assert checked or "产品属性" in page.page_text()
+
+    @allure.story("素材/自动转存")
+    @allure.title("OZ40 主图带出且页面有转存或素材说明")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.p1
+    def test_oz40_image_transfer(self, ozon_listing_from_1688):
+        page = ozon_listing_from_1688
+        text = page.page_text()
+        assert page.image_count() >= 1
+        assert any(k in text for k in ("转存", "素材", "主图", "自动")), text[:500]

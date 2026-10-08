@@ -385,18 +385,23 @@ class PalletPage(BasePage):
         time.sleep(0.6)
         return self
 
-    def click_ozon_listing(self):
+    def click_ozon_listing(self, wait_open: bool = True):
         self.open_one_click_menu()
         if not self._pick_menu(("Ozon 平台", "Ozon", "OZON")):
             raise AssertionError("未出现 Ozon 平台菜单")
+        if not wait_open:
+            time.sleep(1.0)
+            return self
         from pages.ozon_listing_page import OzonListingPage
 
         page = OzonListingPage(self.driver)
         try:
             page.wait_open()
-        except Exception:
-            time.sleep(1.2)
-        return self.toast() or self.page_text() or self.url()
+        except Exception as exc:
+            raise AssertionError(
+                f"未进入 Ozon 刊登页 url={self.url()!r} toast={(self.toast() or '')[:200]!r}"
+            ) from exc
+        return self
 
     def choose_ozon_shop(self):
         self.shop_options()
