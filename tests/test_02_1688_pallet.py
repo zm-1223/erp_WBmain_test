@@ -64,15 +64,27 @@ class Test1688Pallet:
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     @pytest.mark.need_goods
-    def test_tc13_batch_draft(self, pallet_page, draft_page):
+    def test_tc13_batch_draft(self, pallet_page, draft_page, listing_page):
         pallet_page.open("1688").wait_loaded("1688")
         if not pallet_page.has_goods():
             pytest.skip("1688精选无商品")
+        draft_page.open()
+        before = draft_page.all_count()
+        pallet_page.open("1688").wait_loaded("1688")
         pallet_page.choose_wb_shop("WILDBERRIES")
-        pallet_page.select_all()
+        pallet_page.select_first(1)
         pallet_page.click_batch_draft()
         draft_page.open()
-        assert "草稿" in draft_page.page_text()
+        after = draft_page.all_count()
+        assert after >= before + 1 or "1688精选" in draft_page.page_text(), (
+            f"1688精选批量草稿未写入草稿箱 before={before} after={after}"
+        )
+        draft_page.wait_origin("1688精选")
+        draft_page.click_edit_for_origin("1688精选")
+        listing_page.wait_open()
+        assert listing_page.has_recommended_category(), (
+            f"1688精选草稿编辑页未带推荐类目: {listing_page.category_value()!r}"
+        )
 
     @allure.story("入口/筛选排序")
     @allure.title("TC14 类目与排序控件可用")

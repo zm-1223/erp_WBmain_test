@@ -19,3 +19,5 @@ alwaysApply: true
 - `BasePage.dismiss_popups()`：无弹窗不报错；有则关掉并记日志。
 - 在 `js_click` / `fill` / `set_value` / `goto_hash` 开头调用。
 - 不要在 `toast()` 前调用。
+- 业务确认框（批量生成草稿等）用 `confirm_popups()` 点「确定」，不要靠 `dismiss_popups()` 点「取消」。
+- 精选批量草稿必须断言草稿箱**来源列**含「京东精选 / 淘宝精选 / 1688精选」，不能只判断页面有「草稿」二字。

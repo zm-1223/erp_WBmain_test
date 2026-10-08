@@ -101,12 +101,17 @@ class TestJdPallet:
     @allure.title("TC21 勾选京东商品批量生成草稿")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
-    def test_tc21_batch_draft(self, pallet_page, draft_page):
+    def test_tc21_batch_draft(self, pallet_page, draft_page, listing_page):
         pallet_page.open("jd").wait_loaded("jd")
         if not pallet_page.has_goods():
             pytest.skip("京东精选无商品")
         pallet_page.choose_wb_shop(config.WB_SHOP_NAME)
-        pallet_page.select_all()
+        pallet_page.select_first(1)
         pallet_page.click_batch_draft()
         draft_page.open()
-        assert "草稿箱" in draft_page.page_text()
+        draft_page.wait_origin("京东精选")
+        draft_page.click_edit_for_origin("京东精选")
+        listing_page.wait_open()
+        assert listing_page.has_recommended_category(), (
+            f"京东精选草稿编辑页未带推荐类目: {listing_page.category_value()!r}"
+        )

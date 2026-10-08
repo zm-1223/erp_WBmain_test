@@ -62,12 +62,17 @@ class TestTaobaoPallet:
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     @pytest.mark.need_goods
-    def test_tc26_batch_draft(self, pallet_page, draft_page):
+    def test_tc26_batch_draft(self, pallet_page, draft_page, listing_page):
         pallet_page.open("tb").wait_loaded("tb")
         if not pallet_page.has_goods():
             pytest.skip("淘宝精选无商品")
         pallet_page.choose_wb_shop()
-        pallet_page.select_all()
+        pallet_page.select_first(1)
         pallet_page.click_batch_draft()
         draft_page.open()
-        assert "草稿" in draft_page.page_text()
+        draft_page.wait_origin("淘宝精选")
+        draft_page.click_edit_for_origin("淘宝精选")
+        listing_page.wait_open()
+        assert listing_page.has_recommended_category(), (
+            f"淘宝精选草稿编辑页未带推荐类目: {listing_page.category_value()!r}"
+        )

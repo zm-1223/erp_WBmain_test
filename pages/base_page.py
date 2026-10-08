@@ -109,6 +109,36 @@ class BasePage:
             logger.warning("关闭弹窗: %s", msg)
         return closed
 
+    def confirm_popups(self, timeout=4):
+        """业务确认框点「确定/确认」，不点取消。无框则静默返回 False。"""
+        end = time.time() + timeout
+        xp = (
+            "//div[contains(@class,'el-message-box') or contains(@class,'el-dialog')]"
+            "//button[normalize-space()='确定' or normalize-space()='确认' or normalize-space()='是']"
+        )
+        while time.time() < end:
+            try:
+                btns = [b for b in self.driver.find_elements(By.XPATH, xp) if b.is_displayed()]
+                if btns:
+                    box = None
+                    try:
+                        box = btns[0].find_element(
+                            By.XPATH,
+                            "./ancestor::div[contains(@class,'el-message-box') or contains(@class,'el-dialog')][1]",
+                        )
+                    except Exception:
+                        pass
+                    text = ((box.text if box is not None else btns[0].text) or "").strip()
+                    self.driver.execute_script("arguments[0].click();", btns[0])
+                    if text:
+                        logger.info("确认弹窗: %s", text.replace("\n", " | ")[:500])
+                    time.sleep(0.25)
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.2)
+        return False
+
     def js_click(self, el):
         self.dismiss_popups()
         logger.info("点击元素")

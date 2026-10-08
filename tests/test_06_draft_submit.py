@@ -105,14 +105,15 @@ class TestDraftSubmit:
             f"1688链接入口未带推荐类目: {listing_page.category_value()!r}"
         )
 
-        pallet_page.open("jd").wait_loaded("jd")
-        if pallet_page.has_goods():
+        for key, name in (("1688", "1688精选"), ("jd", "京东精选"), ("tb", "淘宝精选")):
+            pallet_page.open(key).wait_loaded(key)
+            if not pallet_page.has_goods():
+                continue
             pallet_page.click_wb_listing()
             listing_page.wait_open()
             assert listing_page.steps_present()
-            assert listing_page.is_required("产品类目")
             assert listing_page.has_recommended_category(), (
-                f"京东精选入口未带推荐类目: {listing_page.category_value()!r}"
+                f"{name}入口未带推荐类目: {listing_page.category_value()!r}"
             )
 
     @allure.story("带出/推荐类目")

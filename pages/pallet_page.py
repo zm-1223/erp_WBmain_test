@@ -54,10 +54,33 @@ class PalletPage(BasePage):
             time.sleep(0.4)
         return self
 
-    def click_batch_draft(self):
+    def click_batch_draft(self, confirm: bool = True):
         self.button("批量生成草稿")
-        time.sleep(0.6)
+        if confirm:
+            self.confirm_popups()
+        time.sleep(0.8)
         return self.toast() or self.page_text()
+
+    def select_first(self, n: int = 1) -> int:
+        self.dismiss_popups()
+        boxes = self.driver.find_elements(
+            By.CSS_SELECTOR, ".el-table__body .el-checkbox, .el-table__row .el-checkbox"
+        )
+        clicked = 0
+        for box in boxes:
+            if not box.is_displayed():
+                continue
+            cls = box.get_attribute("class") or ""
+            if "is-disabled" in cls:
+                continue
+            self.driver.execute_script("arguments[0].click();", box)
+            clicked += 1
+            if clicked >= n:
+                break
+        if clicked == 0:
+            self.select_all()
+        time.sleep(0.3)
+        return clicked
 
     def search(self, keyword: str):
         self.fill(self.SEARCH, keyword)
