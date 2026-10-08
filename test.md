@@ -8,6 +8,8 @@
 - 各入口进入刊登页或草稿编辑页均应自带推荐类目（「荐」）
 - 用例状态默认「待执行」
 - 脚本约定：失败重试 `@pytest.mark.flaky(reruns=2, reruns_delay=3)`；日志 `reports/logs/`；每次点击/填表/跳转前 `dismiss_popups()` 兜底关弹窗（无弹窗不报错，有则关闭并记弹窗文本）
+- Allure 报告：pytest 写入 `reports/allure-results`；查看时用 `allure serve reports/allure-results` 在浏览器打开 HTML，不要直接看 JSON
+- 刊登编辑页判定只认 URL 含 `wb-one-click-listing`（草稿箱面包屑含「Wildberries 一键刊登」不能算已进入）；1688 拉取成功只认出现 offerId 与「一键刊登」卡片，不能把任意 toast 当成功
 
 | 序号 | 功能名称 | 用例类型 | 用例等级 | 前置条件 | 维度 | 校验点 | 期待值 | 用例状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

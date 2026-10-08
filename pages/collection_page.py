@@ -54,7 +54,8 @@ class CollectionPage(BasePage):
         timeout = timeout or config.PULL_WAIT
         self.pull()
         WebDriverWait(self.driver, timeout).until(
-            lambda d: offer_id in self.page_text() or self.toast(0.1)
+            lambda d: offer_id in (self.page_text() or "")
+            and any(b.is_displayed() for b in self.finds(self.ONE_CLICK))
         )
         return self
 
@@ -92,7 +93,6 @@ class CollectionPage(BasePage):
         self.js_click(items[0])
         WebDriverWait(self.driver, config.PULL_WAIT).until(
             lambda d: "wb-one-click-listing" in (d.current_url or "")
-            or "Wildberries 一键刊登" in self.page_text()
         )
         time.sleep(0.6)
         return self

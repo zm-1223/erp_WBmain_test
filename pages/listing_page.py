@@ -40,13 +40,13 @@ class ListingPage(BasePage):
     )
 
     def is_open(self) -> bool:
-        return "wb-one-click-listing" in self.url() or self.has_text("Wildberries 一键刊登")
+        # 只认编辑页 URL。草稿箱面包屑也含「Wildberries 一键刊登」，不能当已打开。
+        return "wb-one-click-listing" in self.url()
 
     def wait_open(self, timeout=None):
         timeout = timeout or config.PULL_WAIT
         WebDriverWait(self.driver, timeout).until(
             lambda d: "wb-one-click-listing" in (d.current_url or "")
-            or "Wildberries 一键刊登" in (d.find_element(By.TAG_NAME, "body").text or "")
         )
         time.sleep(0.8)
         return self
@@ -162,32 +162,84 @@ class ListingPage(BasePage):
         return not any((e.get_attribute("value") or "").strip() for e in els)
 
     def fill_all_ru_size(self, value="42"):
+        self.dismiss_popups()
         for el in self.finds(self.RU_SIZE):
-            self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
-            el.click()
+            self.js_click(el)
             el.send_keys(Keys.CONTROL, "a")
             el.send_keys(value)
         return self
 
     def listing_prices(self):
-        els = self.driver.find_elements(By.CSS_SELECTOR, "input[aria-label='刊登价']")
-        if not els:
-            els = self.driver.find_elements(
-                By.XPATH, "//*[normalize-space()='刊登价']/following::input[1]"
-            )
-        return els
+        locs = (
+            (By.XPATH, "//input[@aria-label='刊登价']"),
+            (By.XPATH, "//input[@placeholder='刊登价']"),
+            (By.XPATH, "//*[@role='textbox' and (@name='刊登价' or @aria-label='刊登价')]"),
+            (By.XPATH, "//*[normalize-space()='刊登价']/following::input[not(@type='hidden')][1]"),
+            (
+                By.XPATH,
+                "//*[contains(@class,'el-table') or contains(@class,'variant')]"
+                "//input[contains(@class,'el-input__inner')]",
+            ),
+        )
+
+        def _visible(loc):
+            return [e for e in self.driver.find_elements(*loc) if e.is_displayed()]
+
+        try:
+            WebDriverWait(self.driver, 8).until(lambda d: any(_visible(loc) for loc in locs))
+        except Exception:
+            pass
+        for loc in locs:
+            els = _visible(loc)
+            if els:
+                return els
+        found = self.driver.execute_script(
+            """
+            const nodes = [...document.querySelectorAll('input.el-input__inner, input')];
+            return nodes.filter((el) => {
+              if (!el.offsetParent) return false;
+              const label = (el.getAttribute('aria-label') || el.placeholder || el.name || '');
+              if (label.includes('刊登价')) return true;
+              const cell = el.closest('td, .el-form-item, .el-table__cell');
+              return cell && (cell.innerText || '').includes('刊登价');
+            });
+            """
+        )
+        return found or []
 
     def clear_first_price(self):
+        self.dismiss_popups()
+        try:
+            self.driver.execute_script(
+                "const n=[...document.querySelectorAll('*')].find(e=>e.innerText&&e.innerText.trim()==='刊登价');"
+                "if(n) n.scrollIntoView({block:'center'});"
+            )
+        except Exception:
+            pass
         prices = self.listing_prices()
         if not prices:
             raise AssertionError("未找到刊登价输入框")
         el = prices[0]
-        el.click()
-        el.send_keys(Keys.CONTROL, "a")
-        el.send_keys(Keys.DELETE)
+        self.js_click(el)
+        try:
+            el.send_keys(Keys.CONTROL, "a")
+            el.send_keys(Keys.DELETE)
+        except Exception:
+            pass
+        self.driver.execute_script(
+            """
+            const el = arguments[0];
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            setter.call(el, '');
+            el.dispatchEvent(new Event('input', {bubbles:true}));
+            el.dispatchEvent(new Event('change', {bubbles:true}));
+            """,
+            el,
+        )
         return self
 
     def set_first_stock(self, value: str):
+        self.dismiss_popups()
         stocks = self.driver.find_elements(By.CSS_SELECTOR, ".el-input-number input")
         # skip weight/dimension spinbuttons at top: pick ones near 库存
         if len(stocks) < 5:

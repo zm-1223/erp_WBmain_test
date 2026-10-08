@@ -1,0 +1,35 @@
+---
+description: 用浏览器打开 Allure HTML 报告，不要只丢 JSON
+alwaysApply: true
+---
+
+# 浏览器可视化 Allure 报告
+
+`reports/allure-results` 是 pytest 写出的原始结果（JSON/附件），不是给人看的报告。
+
+## 何时打开
+
+- 用户说「看报告」「打开 Allure」「可视化结果」时：在仓库根目录执行 `allure serve reports/allure-results`，用系统浏览器打开 HTML 报告。
+- 跑完 pytest **不要**自动 `allure serve`，除非用户明确要看。
+
+## 怎么打开
+
+```text
+allure serve reports/allure-results
+```
+
+该命令会起本地服务并拉起浏览器，展示用例树、通过/失败/跳过、重试、截图与日志附件。命令会占住终端，放到后台执行，并把浏览器地址告诉用户。
+
+备选静态站点（不长期占端口）：
+
+```text
+allure generate reports/allure-results -o reports/allure-report --clean
+```
+
+然后打开 `reports/allure-report/index.html`。
+
+## 不要做
+
+- 不要把 `*-result.json` 当报告贴给用户。
+- 用户要可视化时，不要只用控制台 passed/failed 数字代替浏览器报告。
+- 未安装 Allure CLI 时先说明需安装 `allure` 命令行，再执行 serve。

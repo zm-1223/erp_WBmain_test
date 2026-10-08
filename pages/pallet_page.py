@@ -124,7 +124,6 @@ class PalletPage(BasePage):
         self.js_click(items[0])
         self.wait.until(
             lambda d: "wb-one-click-listing" in (d.current_url or "")
-            or "Wildberries 一键刊登" in self.page_text()
         )
         time.sleep(0.6)
         return self

@@ -93,8 +93,9 @@ def on_collect(collect_page):
 
 @pytest.fixture
 def listing_from_1688(collect_page, listing_page):
-    """从1688卡片进入刊登页；已在刊登页则复用，不重新打开站点。"""
+    """从1688卡片进入刊登编辑页。仅当 URL 含 wb-one-click-listing 才复用，避免草稿箱误判。"""
     if not listing_page.is_open():
+        page_logger.info("当前不在刊登编辑页 url=%s，重新从1688进入", listing_page.url())
         collect_page.ensure_card()
         collect_page.click_wb_listing()
         listing_page.wait_open()

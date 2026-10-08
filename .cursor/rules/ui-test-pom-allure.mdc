@@ -32,7 +32,7 @@ collect_page.goto_hash(config.HASH_JD_PALLET, "京东精选")
 - 依赖：`allure-pytest`；`pytest.ini` 已配置 `--alluredir=reports/allure-results`。
 - 用例使用 `@allure.feature/story/title/severity`，编号与 `test.md` 对齐（TCxx）。
 - 失败钩子在 `conftest.py`：截图挂到 Allure，并写入 `reports/screenshots/`。
-- 查看报告：`allure serve reports/allure-results`。
+- 用户要看报告时：`allure serve reports/allure-results`，用浏览器打开 HTML（用例树、重试、截图）。不要把 `allure-results` 里的 JSON 当报告；跑完测试不要自动 serve。
 
 ## 4. 刊登页 / 草稿页自带推荐类目
 
