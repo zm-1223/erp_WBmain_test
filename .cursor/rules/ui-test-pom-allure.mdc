@@ -23,27 +23,29 @@ collect_page.goto_hash(config.HASH_JD_PALLET, "京东精选")
 
 ## 2. 使用 POM
 
-- `pages/`：`LoginPage`、`CollectionPage`、`PalletPage`、`ListingPage`、`DraftPage`，继承 `BasePage`。
-- `tests/`：只调用页面方法做断言，不写裸定位器。
+- `pages/`：`LoginPage`、`CollectionPage`、`PalletPage`、`WbListingPage`、`OzonListingPage`、`DraftPage`，继承 `BasePage`。
+- `tests/`：`test_wb_*.py` 测 WB 刊登，`test_ozon_*.py` 测 Ozon 刊登；只调用页面方法做断言，不写裸定位器。
 - 新增入口先加 Page 方法，再写 `test_*.py`。
+- 用例编号：WB 用 `TCxx`，Ozon 用 `OZxx`，与 `test.md` 对齐。
 
 ## 3. Allure + 失败截图
 
 - 依赖：`allure-pytest`；`pytest.ini` 已配置 `--alluredir=reports/allure-results`。
-- 用例使用 `@allure.feature/story/title/severity`，编号与 `test.md` 对齐（TCxx）。
+- 用例使用 `@allure.feature/story/title/severity`，编号与 `test.md` 对齐（WB=`TCxx`，Ozon=`OZxx`）。
 - 失败钩子在 `conftest.py`：截图挂到 Allure，并写入 `reports/screenshots/`。
 - 用户要看报告时：`allure serve reports/allure-results`，用浏览器打开 HTML（用例树、重试、截图）。不要把 `allure-results` 里的 JSON 当报告；跑完测试不要自动 serve。
 
 ## 4. 刊登页 / 草稿页自带推荐类目
 
-- 从 1688 链接、1688 精选、京东精选、淘宝精选进入 **Wildberries 一键刊登** 或草稿「编辑」页时，产品类目必须已带出推荐类目（控件旁「荐」），不能为空。
+- 从 1688 链接、1688 精选、京东精选、淘宝精选进入 **Wildberries 一键刊登** 或 **Ozon 一键刊登**（以及对应草稿「编辑」页）时，产品类目必须已带出推荐类目（控件旁「荐」），不能为空。Ozon 四入口包装重量/尺寸同样须与原商品核对（OZ15/17/21/22）。
 - 进入刊登/草稿编辑后断言类目已预填；不要写成「类目默认为空需手选」。
 - TC57 等多入口一致性用例也要核对推荐类目规则相同。
 - 精选「批量生成草稿」须在草稿箱核对来源列（京东精选/淘宝精选/1688精选），不能只断言有「草稿」文案。
 - 1688/淘宝精选多为卡片：有货判定含「一键刊登」下拉与 `offerId：数字`，勾选走卡片 `.el-checkbox`，不要只找表格 `button` / `.el-table`。
 - 包装重量/尺寸：先解析原商品（卡片/查看详情），再与刊登页对比。卡片未展示包装则 skip，不要当成货源无包装。有则数值须一致（误差 0.05）。1688 样例 726638874254 为 0.8kg、42×32×5cm。
 - 精选「一键刊登」用 `raw_click` 打开下拉，菜单项不要再 `js_click`（以免 dismiss 关掉菜单）。
-- `listing_from_1688` 每次重新进刊登页，禁止复用脏表单。
+- `wb_listing_from_1688` / `ozon_listing_from_1688` 每次重新进对应平台刊登页，禁止复用脏表单。
+- WB 编辑页只认 URL 含 `wb-one-click-listing`；Ozon 编辑页只认 ozon 刊登路由，不能把 WB 页当 Ozon 页。
 - 必填拦截要断言提示关键字，不要只判断 toast 非空。
 
 ## 5. 写完脚本不自动执行

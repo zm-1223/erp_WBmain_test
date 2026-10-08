@@ -10,7 +10,7 @@ pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)
 
 @allure.epic("如斯达ERP")
 @allure.feature("WB商品刊登-1688链接采集")
-class Test1688LinkCollect:
+class TestWb1688LinkCollect:
     @allure.story("入口/空值")
     @allure.title("TC01 空链接点击拉取商品应提示")
     @allure.severity(allure.severity_level.CRITICAL)
@@ -99,15 +99,15 @@ class Test1688LinkCollect:
     @allure.title("TC08 一键刊登 WB 进入编辑页并预填")
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
-    def test_tc08_enter_wb_listing(self, on_collect, listing_page):
+    def test_tc08_enter_wb_listing(self, on_collect, wb_listing_page):
         on_collect.ensure_card()
         on_collect.click_wb_listing()
-        listing_page.wait_open()
-        text = listing_page.page_text()
-        assert listing_page.is_open()
-        assert config.OFFER_ID in text or config.OFFER_ID in listing_page.source_url_value()
+        wb_listing_page.wait_open()
+        text = wb_listing_page.page_text()
+        assert wb_listing_page.is_open()
+        assert config.OFFER_ID in text or config.OFFER_ID in wb_listing_page.source_url_value()
         assert "标题" in text
-        assert listing_page.steps_present()
-        assert listing_page.has_recommended_category(), (
-            f"1688链接进入刊登页未带推荐类目: {listing_page.category_value()!r}"
+        assert wb_listing_page.steps_present()
+        assert wb_listing_page.has_recommended_category(), (
+            f"1688链接进入刊登页未带推荐类目: {wb_listing_page.category_value()!r}"
         )

@@ -12,7 +12,7 @@ from pages.base_page import BasePage
 from utils.package_fields import parse_number, same_num
 
 
-class ListingPage(BasePage):
+class WbListingPage(BasePage):
     CN_TITLE = (By.CSS_SELECTOR, "textarea[placeholder='请输入中文标题'], input[placeholder='请输入中文标题']")
     RU_TITLE = (
         By.CSS_SELECTOR,
@@ -42,12 +42,12 @@ class ListingPage(BasePage):
 
     def is_open(self) -> bool:
         # 只认编辑页 URL。草稿箱面包屑也含「Wildberries 一键刊登」，不能当已打开。
-        return "wb-one-click-listing" in self.url()
+        return config.WB_LISTING_URL_MARK in self.url()
 
     def wait_open(self, timeout=None):
         timeout = timeout or config.PULL_WAIT
         WebDriverWait(self.driver, timeout).until(
-            lambda d: "wb-one-click-listing" in (d.current_url or "")
+            lambda d: config.WB_LISTING_URL_MARK in (d.current_url or "")
         )
         time.sleep(0.8)
         return self
@@ -485,3 +485,6 @@ class ListingPage(BasePage):
     def blur_active(self):
         self.driver.execute_script("document.activeElement && document.activeElement.blur();")
         time.sleep(0.3)
+
+
+ListingPage = WbListingPage

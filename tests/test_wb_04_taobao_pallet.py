@@ -8,7 +8,7 @@ pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)
 
 @allure.epic("如斯达ERP")
 @allure.feature("WB商品刊登-淘宝精选")
-class TestTaobaoPallet:
+class TestWbTaobaoPallet:
     @allure.story("入口/页面加载")
     @allure.title("TC22 淘宝精选 Tab 结构与1688/京东一致")
     @allure.severity(allure.severity_level.CRITICAL)
@@ -46,16 +46,16 @@ class TestTaobaoPallet:
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
     @pytest.mark.need_goods
-    def test_tc25_one_click_wb(self, pallet_page, listing_page):
+    def test_tc25_one_click_wb(self, pallet_page, wb_listing_page):
         pallet_page.open("tb").wait_loaded("tb")
         if not pallet_page.has_goods():
             pytest.skip("淘宝精选无商品")
         pallet_page.click_wb_listing()
-        listing_page.wait_open()
-        assert listing_page.is_open()
-        assert listing_page.steps_present()
-        assert listing_page.has_recommended_category(), (
-            f"淘宝精选进入刊登页未带推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.is_open()
+        assert wb_listing_page.steps_present()
+        assert wb_listing_page.has_recommended_category(), (
+            f"淘宝精选进入刊登页未带推荐类目: {wb_listing_page.category_value()!r}"
         )
 
     @allure.story("入口/批量草稿")
@@ -63,7 +63,7 @@ class TestTaobaoPallet:
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     @pytest.mark.need_goods
-    def test_tc26_batch_draft(self, pallet_page, draft_page, listing_page):
+    def test_tc26_batch_draft(self, pallet_page, draft_page, wb_listing_page):
         pallet_page.open("tb").wait_loaded("tb")
         if not pallet_page.has_goods():
             pytest.skip("淘宝精选无商品")
@@ -73,7 +73,7 @@ class TestTaobaoPallet:
         draft_page.open()
         draft_page.wait_origin("淘宝精选")
         draft_page.click_edit_for_origin("淘宝精选")
-        listing_page.wait_open()
-        assert listing_page.has_recommended_category(), (
-            f"淘宝精选草稿编辑页未带推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.has_recommended_category(), (
+            f"淘宝精选草稿编辑页未带推荐类目: {wb_listing_page.category_value()!r}"
         )

@@ -380,7 +380,7 @@ class PalletPage(BasePage):
         if not self._pick_menu(keywords):
             raise AssertionError("未出现 WB 平台菜单")
         self.wait.until(
-            lambda d: "wb-one-click-listing" in (d.current_url or "")
+            lambda d: config.WB_LISTING_URL_MARK in (d.current_url or "")
         )
         time.sleep(0.6)
         return self
@@ -389,7 +389,13 @@ class PalletPage(BasePage):
         self.open_one_click_menu()
         if not self._pick_menu(("Ozon 平台", "Ozon", "OZON")):
             raise AssertionError("未出现 Ozon 平台菜单")
-        time.sleep(1.2)
+        from pages.ozon_listing_page import OzonListingPage
+
+        page = OzonListingPage(self.driver)
+        try:
+            page.wait_open()
+        except Exception:
+            time.sleep(1.2)
         return self.toast() or self.page_text() or self.url()
 
     def choose_ozon_shop(self):

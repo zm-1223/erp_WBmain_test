@@ -101,7 +101,7 @@ class CollectionPage(BasePage):
         if not self.click_menu_item(("WB 平台", "WB"), timeout=5):
             raise AssertionError("一键刊登下拉未出现「WB 平台」")
         WebDriverWait(self.driver, config.PULL_WAIT).until(
-            lambda d: "wb-one-click-listing" in (d.current_url or "")
+            lambda d: config.WB_LISTING_URL_MARK in (d.current_url or "")
         )
         time.sleep(0.6)
         return self
@@ -110,7 +110,13 @@ class CollectionPage(BasePage):
         self.open_one_click_menu()
         if not self.click_menu_item(("Ozon 平台", "Ozon", "OZON"), timeout=5):
             raise AssertionError("一键刊登下拉未出现「Ozon 平台」")
-        time.sleep(1.2)
+        from pages.ozon_listing_page import OzonListingPage
+
+        page = OzonListingPage(self.driver)
+        try:
+            page.wait_open()
+        except Exception:
+            pass
         return self.toast() or self.page_text() or self.url()
 
     def source_snapshot(self) -> dict:

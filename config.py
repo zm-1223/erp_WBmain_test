@@ -38,8 +38,17 @@ HASH_1688_PALLET = "#/goods/collection?tab=pallet"
 HASH_JD_PALLET = "#/goods/collection?tab=jd-pallet"
 HASH_TB_PALLET = "#/goods/collection?tab=taobao-pallet"
 HASH_DRAFT = "#/goods/publish?tab=draft"
+HASH_OZON_DRAFT = os.getenv("ERP_OZON_DRAFT_HASH", "#/goods/ozon-publish?tab=draft")
+WB_LISTING_URL_MARK = "wb-one-click-listing"
+OZON_LISTING_URL_MARKS = (
+    "ozon-one-click-listing",
+    "ozon-one-click",
+    "ozon-listing",
+)
 
-# 默认不向 WB 真实提交刊登
+OZON_SHOP_NAME = os.getenv("ERP_OZON_SHOP", "OZON")
+
+# 默认不向 WB/Ozon 真实提交刊登
 SUBMIT_LIVE = os.getenv("ERP_SUBMIT_LIVE", "0") == "1"
 
 IMPLICIT_WAIT = 0

@@ -10,20 +10,20 @@ pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)
 
 @allure.epic("如斯达ERP")
 @allure.feature("WB商品刊登-草稿提交")
-class TestDraftSubmit:
+class TestWbDraftSubmit:
     @allure.story("流程/生成草稿")
     @allure.title("TC52 必填未齐生成草稿进入待完善")
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
-    def test_tc52_save_incomplete_draft(self, collect_page, listing_page, draft_page):
+    def test_tc52_save_incomplete_draft(self, collect_page, wb_listing_page, draft_page):
         collect_page.ensure_card()
         collect_page.click_wb_listing()
-        listing_page.wait_open()
-        assert listing_page.has_recommended_category(), (
-            f"生成草稿前刊登页未带推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.has_recommended_category(), (
+            f"生成草稿前刊登页未带推荐类目: {wb_listing_page.category_value()!r}"
         )
-        msg = listing_page.save_draft()
-        assert "草稿" in msg or "草稿" in listing_page.page_text() or "publish" in listing_page.url()
+        msg = wb_listing_page.save_draft()
+        assert "草稿" in msg or "草稿" in wb_listing_page.page_text() or "publish" in wb_listing_page.url()
         draft_page.open()
         text = draft_page.page_text()
         assert "待完善" in text
@@ -42,14 +42,14 @@ class TestDraftSubmit:
     @allure.title("TC54 补齐必填后可进入可刊登（默认不真实提交）")
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
-    def test_tc54_ready_to_publish(self, collect_page, listing_page, draft_page):
+    def test_tc54_ready_to_publish(self, collect_page, wb_listing_page, draft_page):
         collect_page.ensure_card()
         collect_page.click_wb_listing()
-        listing_page.wait_open()
-        listing_page.fill_all_ru_size("42")
-        has_wh = listing_page.select_first_warehouse()
-        listing_page.map_first_colors()
-        listing_page.save_draft()
+        wb_listing_page.wait_open()
+        wb_listing_page.fill_all_ru_size("42")
+        has_wh = wb_listing_page.select_first_warehouse()
+        wb_listing_page.map_first_colors()
+        wb_listing_page.save_draft()
         draft_page.open()
         if not has_wh:
             pytest.skip("当前店铺无可用 WB 仓库，无法补齐必填")
@@ -78,42 +78,42 @@ class TestDraftSubmit:
     @allure.title("TC55 草稿箱编辑回填刊登页")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
-    def test_tc55_edit_draft(self, draft_page, listing_page):
+    def test_tc55_edit_draft(self, draft_page, wb_listing_page):
         draft_page.open()
         if "编辑" not in draft_page.page_text():
             pytest.skip("草稿箱无记录")
         draft_page.click_edit()
-        listing_page.wait_open()
-        assert listing_page.is_open()
-        assert listing_page.cn_title_value() or listing_page.steps_present()
-        assert listing_page.has_recommended_category(), (
-            f"草稿编辑页未回填推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.is_open()
+        assert wb_listing_page.cn_title_value() or wb_listing_page.steps_present()
+        assert wb_listing_page.has_recommended_category(), (
+            f"草稿编辑页未回填推荐类目: {wb_listing_page.category_value()!r}"
         )
 
     @allure.story("流程/取消")
     @allure.title("TC56 取消离开编辑页")
     @allure.severity(allure.severity_level.MINOR)
     @pytest.mark.p2
-    def test_tc56_cancel(self, collect_page, listing_page):
+    def test_tc56_cancel(self, collect_page, wb_listing_page):
         collect_page.ensure_card()
         collect_page.click_wb_listing()
-        listing_page.wait_open()
-        listing_page.click_cancel()
-        assert "wb-one-click-listing" not in listing_page.url() or listing_page.has_text("商品采集")
+        wb_listing_page.wait_open()
+        wb_listing_page.click_cancel()
+        assert config.WB_LISTING_URL_MARK not in wb_listing_page.url() or wb_listing_page.has_text("商品采集")
 
     @allure.story("一致性/多入口同页")
     @allure.title("TC57 多入口进入同一套三步刊登表单")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
-    def test_tc57_same_form_from_entries(self, collect_page, pallet_page, listing_page):
+    def test_tc57_same_form_from_entries(self, collect_page, pallet_page, wb_listing_page):
         collect_page.ensure_card()
         collect_page.click_wb_listing()
-        listing_page.wait_open()
-        assert listing_page.steps_present()
-        assert listing_page.is_required("上架店铺")
-        assert listing_page.is_required("选择仓库")
-        assert listing_page.has_recommended_category(), (
-            f"1688链接入口未带推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.steps_present()
+        assert wb_listing_page.is_required("上架店铺")
+        assert wb_listing_page.is_required("选择仓库")
+        assert wb_listing_page.has_recommended_category(), (
+            f"1688链接入口未带推荐类目: {wb_listing_page.category_value()!r}"
         )
 
         for key, name in (("1688", "1688精选"), ("jd", "京东精选"), ("tb", "淘宝精选")):
@@ -121,10 +121,10 @@ class TestDraftSubmit:
             if not pallet_page.has_goods():
                 continue
             pallet_page.click_wb_listing()
-            listing_page.wait_open()
-            assert listing_page.steps_present()
-            assert listing_page.has_recommended_category(), (
-                f"{name}入口未带推荐类目: {listing_page.category_value()!r}"
+            wb_listing_page.wait_open()
+            assert wb_listing_page.steps_present()
+            assert wb_listing_page.has_recommended_category(), (
+                f"{name}入口未带推荐类目: {wb_listing_page.category_value()!r}"
             )
 
     @allure.story("带出/推荐类目")
@@ -132,21 +132,21 @@ class TestDraftSubmit:
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
     def test_tc58_recommended_category_all_entries(
-        self, collect_page, pallet_page, listing_page, draft_page
+        self, collect_page, pallet_page, wb_listing_page, draft_page
     ):
         collect_page.ensure_card()
         collect_page.click_wb_listing()
-        listing_page.wait_open()
-        assert listing_page.has_recommended_category(), (
-            f"1688链接刊登页无推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.has_recommended_category(), (
+            f"1688链接刊登页无推荐类目: {wb_listing_page.category_value()!r}"
         )
-        listing_page.save_draft()
+        wb_listing_page.save_draft()
         draft_page.open()
         if "编辑" in draft_page.page_text():
             draft_page.click_edit()
-            listing_page.wait_open()
-            assert listing_page.has_recommended_category(), (
-                f"草稿编辑页无推荐类目: {listing_page.category_value()!r}"
+            wb_listing_page.wait_open()
+            assert wb_listing_page.has_recommended_category(), (
+                f"草稿编辑页无推荐类目: {wb_listing_page.category_value()!r}"
             )
 
         for key, name in (("1688", "1688精选"), ("jd", "京东精选"), ("tb", "淘宝精选")):
@@ -154,7 +154,7 @@ class TestDraftSubmit:
             if not pallet_page.has_goods():
                 continue
             pallet_page.click_wb_listing()
-            listing_page.wait_open()
-            assert listing_page.has_recommended_category(), (
-                f"{name}进入刊登页无推荐类目: {listing_page.category_value()!r}"
+            wb_listing_page.wait_open()
+            assert wb_listing_page.has_recommended_category(), (
+                f"{name}进入刊登页无推荐类目: {wb_listing_page.category_value()!r}"
             )

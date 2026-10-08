@@ -13,7 +13,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 import config as app_cfg
 from pages.collection_page import CollectionPage
 from pages.draft_page import DraftPage
-from pages.listing_page import ListingPage
+from pages.listing_page import WbListingPage
+from pages.ozon_listing_page import OzonListingPage
 from pages.login_page import LoginPage
 from pages.base_page import BasePage, logger as page_logger
 from pages.pallet_page import PalletPage
@@ -70,8 +71,19 @@ def pallet_page(driver):
 
 
 @pytest.fixture(scope="session")
-def listing_page(driver):
-    return ListingPage(driver)
+def wb_listing_page(driver):
+    return WbListingPage(driver)
+
+
+@pytest.fixture(scope="session")
+def ozon_listing_page(driver):
+    return OzonListingPage(driver)
+
+
+@pytest.fixture(scope="session")
+def listing_page(wb_listing_page):
+    """兼容旧名，等同 wb_listing_page。"""
+    return wb_listing_page
 
 
 @pytest.fixture(scope="session")
@@ -95,13 +107,32 @@ def on_collect(collect_page):
 
 
 @pytest.fixture
-def listing_from_1688(collect_page, listing_page):
-    """每次从1688卡片重新进入刊登编辑页，避免上一例改过的脏表单。"""
-    page_logger.info("重新从1688进入刊登页，避免复用脏表单")
+def wb_listing_from_1688(collect_page, wb_listing_page):
+    """每次从1688卡片重新进入 WB 刊登编辑页，避免上一例改过的脏表单。"""
+    page_logger.info("重新从1688进入 WB 刊登页，避免复用脏表单")
     collect_page.ensure_card()
     collect_page.click_wb_listing()
-    listing_page.wait_open()
-    return listing_page
+    wb_listing_page.wait_open()
+    return wb_listing_page
+
+
+@pytest.fixture
+def listing_from_1688(wb_listing_from_1688):
+    """兼容旧名，等同 wb_listing_from_1688。"""
+    return wb_listing_from_1688
+
+
+@pytest.fixture
+def ozon_listing_from_1688(collect_page, ozon_listing_page):
+    """每次从1688卡片重新进入 Ozon 刊登编辑页。"""
+    page_logger.info("重新从1688进入 Ozon 刊登页，避免复用脏表单")
+    collect_page.ensure_card()
+    collect_page.click_ozon_listing()
+    try:
+        ozon_listing_page.wait_open()
+    except Exception:
+        pytest.skip("未进入 Ozon 刊登页（需 OZON 店铺或平台入口）")
+    return ozon_listing_page
 
 
 def _attach_failure(item, when: str):

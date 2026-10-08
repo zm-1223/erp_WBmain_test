@@ -10,7 +10,7 @@ pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)
 
 @allure.epic("如斯达ERP")
 @allure.feature("WB商品刊登-京东精选")
-class TestJdPallet:
+class TestWbJdPallet:
     @allure.story("入口/页面加载")
     @allure.title("TC15 京东精选列表字段")
     @allure.severity(allure.severity_level.CRITICAL)
@@ -72,19 +72,19 @@ class TestJdPallet:
     @allure.title("TC19 京东精选一键刊登 WB")
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
-    def test_tc19_one_click_wb(self, pallet_page, listing_page):
+    def test_tc19_one_click_wb(self, pallet_page, wb_listing_page):
         pallet_page.open("jd").wait_loaded("jd")
         if not pallet_page.has_goods():
             pytest.skip("京东精选无商品")
         pallet_page.choose_wb_shop("WB")
         pallet_page.click_wb_listing()
-        listing_page.wait_open()
-        assert listing_page.is_open()
-        src = listing_page.source_url_value() + listing_page.page_text()
-        assert listing_page.steps_present()
+        wb_listing_page.wait_open()
+        assert wb_listing_page.is_open()
+        src = wb_listing_page.source_url_value() + wb_listing_page.page_text()
+        assert wb_listing_page.steps_present()
         assert src
-        assert listing_page.has_recommended_category(), (
-            f"京东精选进入刊登页未带推荐类目: {listing_page.category_value()!r}"
+        assert wb_listing_page.has_recommended_category(), (
+            f"京东精选进入刊登页未带推荐类目: {wb_listing_page.category_value()!r}"
         )
 
     @allure.story("入口/目标店铺")
@@ -101,7 +101,7 @@ class TestJdPallet:
     @allure.title("TC21 勾选京东商品批量生成草稿")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
-    def test_tc21_batch_draft(self, pallet_page, draft_page, listing_page):
+    def test_tc21_batch_draft(self, pallet_page, draft_page, wb_listing_page):
         pallet_page.open("jd").wait_loaded("jd")
         if not pallet_page.has_goods():
             pytest.skip("京东精选无商品")
@@ -111,7 +111,7 @@ class TestJdPallet:
         draft_page.open()
         draft_page.wait_origin("京东精选")
         draft_page.click_edit_for_origin("京东精选")
-        listing_page.wait_open()
-        assert listing_page.has_recommended_category(), (
-            f"京东精选草稿编辑页未带推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.has_recommended_category(), (
+            f"京东精选草稿编辑页未带推荐类目: {wb_listing_page.category_value()!r}"
         )

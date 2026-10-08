@@ -20,7 +20,18 @@ class DraftPage(BasePage):
     VALIDATE = (By.XPATH, "//button[normalize-space()='批量校验']")
 
     def open(self):
+        return self.open_wb()
+
+    def open_wb(self):
         self.goto_hash(config.HASH_DRAFT, "草稿箱")
+        time.sleep(0.8)
+        return self
+
+    def open_ozon(self):
+        try:
+            self.goto_hash(config.HASH_OZON_DRAFT, "草稿")
+        except Exception:
+            self.goto_hash(config.HASH_DRAFT, "草稿箱")
         time.sleep(0.8)
         return self
 

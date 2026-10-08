@@ -10,7 +10,7 @@ pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)
 
 @allure.epic("如斯达ERP")
 @allure.feature("WB商品刊登-1688精选")
-class Test1688Pallet:
+class TestWb1688Pallet:
     @allure.story("入口/页面加载")
     @allure.title("TC09 1688精选 Tab 与筛选项")
     @allure.severity(allure.severity_level.CRITICAL)
@@ -48,16 +48,16 @@ class Test1688Pallet:
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.p0
     @pytest.mark.need_goods
-    def test_tc12_one_click_wb(self, pallet_page, listing_page):
+    def test_tc12_one_click_wb(self, pallet_page, wb_listing_page):
         pallet_page.open("1688").wait_loaded("1688")
         if not pallet_page.has_goods():
             pytest.skip("1688精选无商品")
         pallet_page.click_wb_listing()
-        listing_page.wait_open()
-        assert listing_page.is_open()
-        assert listing_page.steps_present()
-        assert listing_page.has_recommended_category(), (
-            f"1688精选进入刊登页未带推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.is_open()
+        assert wb_listing_page.steps_present()
+        assert wb_listing_page.has_recommended_category(), (
+            f"1688精选进入刊登页未带推荐类目: {wb_listing_page.category_value()!r}"
         )
 
     @allure.story("入口/批量草稿")
@@ -65,7 +65,7 @@ class Test1688Pallet:
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     @pytest.mark.need_goods
-    def test_tc13_batch_draft(self, pallet_page, draft_page, listing_page):
+    def test_tc13_batch_draft(self, pallet_page, draft_page, wb_listing_page):
         pallet_page.open("1688").wait_loaded("1688")
         if not pallet_page.has_goods():
             pytest.skip("1688精选无商品")
@@ -78,9 +78,9 @@ class Test1688Pallet:
         draft_page.open()
         draft_page.wait_all_count_at_least(before + 1)
         draft_page.click_edit()
-        listing_page.wait_open()
-        assert listing_page.has_recommended_category(), (
-            f"1688精选草稿编辑页未带推荐类目: {listing_page.category_value()!r}"
+        wb_listing_page.wait_open()
+        assert wb_listing_page.has_recommended_category(), (
+            f"1688精选草稿编辑页未带推荐类目: {wb_listing_page.category_value()!r}"
         )
 
     @allure.story("入口/筛选排序")
