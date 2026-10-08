@@ -311,25 +311,31 @@ class ListingPage(BasePage):
 
     def delete_all_images(self):
         for label in ("全选图片", "全选"):
-            btns = [
-                b
-                for b in self.driver.find_elements(
-                    By.XPATH, f"//button[contains(normalize-space(), {self.quote(label)})]"
-                )
-                if b.is_displayed()
-            ]
+            btns = []
+            for b in self.driver.find_elements(
+                By.XPATH, f"//button[contains(normalize-space(), {self.quote(label)})]"
+            ):
+                try:
+                    if b.is_displayed():
+                        btns.append(b)
+                except Exception:
+                    continue
             if btns:
-                self.js_click(btns[0])
-                time.sleep(0.2)
+                try:
+                    self.js_click(btns[0])
+                    time.sleep(0.2)
+                except Exception:
+                    pass
                 break
         buttons = self.driver.find_elements(By.XPATH, "//button[normalize-space()='删除']")
         for b in buttons[:12]:
-            if b.is_displayed():
-                try:
-                    self.js_click(b)
-                    time.sleep(0.12)
-                except Exception:
-                    pass
+            try:
+                if not b.is_displayed():
+                    continue
+                self.js_click(b)
+                time.sleep(0.12)
+            except Exception:
+                pass
         for css in (
             ".el-upload-list__item-delete",
             ".el-icon-delete",
