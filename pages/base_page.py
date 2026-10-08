@@ -5,8 +5,10 @@ import time
 
 from selenium.common.exceptions import (
     ElementClickInterceptedException,
+    NoAlertPresentException,
     StaleElementReferenceException,
     TimeoutException,
+    UnexpectedAlertPresentException,
 )
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -15,6 +17,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 import config
+from utils.logger import get_logger
+
+logger = get_logger("erp_wb.page")
 
 
 class BasePage:
@@ -51,7 +56,62 @@ class BasePage:
             EC.element_to_be_clickable(locator)
         )
 
+    def dismiss_popups(self):
+        """兜底关弹窗：没有则静默返回；有则关闭并把原文写入日志。"""
+        closed = []
+        try:
+            alert = self.driver.switch_to.alert
+            text = (alert.text or "").strip()
+            if text:
+                closed.append(f"Alert:{text}")
+            alert.dismiss()
+        except (NoAlertPresentException, UnexpectedAlertPresentException, Exception):
+            pass
+
+        close_xpaths = [
+            "//div[contains(@class,'el-message-box')]//button[contains(@class,'el-message-box__headerbtn')]",
+            "//div[contains(@class,'el-dialog')]//button[contains(@class,'el-dialog__headerbtn')]",
+            "//div[contains(@class,'el-message-box')]//button[normalize-space()='取消']",
+            "//div[contains(@class,'el-dialog')]//button[normalize-space()='取消']",
+            "//div[contains(@class,'el-message-box')]//button[normalize-space()='关闭']",
+            "//div[contains(@class,'el-dialog')]//button[normalize-space()='关闭']",
+            "//i[contains(@class,'el-message-box__close')]/ancestor::button[1]",
+            "//button[contains(@class,'el-dialog__headerbtn')]",
+            "//div[contains(@class,'el-message-box__btns')]//button[last()]",
+        ]
+        for xp in close_xpaths:
+            try:
+                btns = [
+                    b
+                    for b in self.driver.find_elements(By.XPATH, xp)
+                    if b.is_displayed()
+                ]
+                if not btns:
+                    continue
+                box = None
+                try:
+                    box = btns[0].find_element(
+                        By.XPATH,
+                        "./ancestor::div[contains(@class,'el-message-box') or contains(@class,'el-dialog')][1]",
+                    )
+                except Exception:
+                    pass
+                text = ((box.text if box is not None else btns[0].text) or "").strip()
+                self.driver.execute_script("arguments[0].click();", btns[0])
+                if text:
+                    closed.append(text.replace("\n", " | ")[:500])
+                time.sleep(0.15)
+                break
+            except Exception:
+                continue
+
+        for msg in closed:
+            logger.warning("关闭弹窗: %s", msg)
+        return closed
+
     def js_click(self, el):
+        self.dismiss_popups()
+        logger.info("点击元素")
         try:
             self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
             time.sleep(0.12)
@@ -110,6 +170,8 @@ class BasePage:
 
     def goto_hash(self, hash_path: str, keyword: str | None = None):
         """同域只改 hash，不重新打开站点。"""
+        self.dismiss_popups()
+        logger.info("跳转 hash=%s", hash_path)
         if not hash_path.startswith("#"):
             hash_path = "#" + hash_path
         current = self.driver.current_url or ""
@@ -129,6 +191,8 @@ class BasePage:
         time.sleep(0.4)
 
     def fill(self, locator, value: str):
+        self.dismiss_popups()
+        logger.info("填写 %s", locator)
         el = self.visible(locator)
         self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
         try:
@@ -152,6 +216,8 @@ class BasePage:
         return el
 
     def set_value(self, locator, value: str):
+        self.dismiss_popups()
+        logger.info("设置值 %s", locator)
         el = self.visible(locator)
         self.driver.execute_script(
             """

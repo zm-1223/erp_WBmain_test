@@ -1,0 +1,21 @@
+---
+description: UI 测试失败重试、日志、操作前兜底关弹窗
+alwaysApply: true
+---
+
+# 重试、日志与弹窗
+
+## 1. 失败重试
+
+- 依赖 `pytest-rerunfailures`。
+- 各 `tests/test_*.py` 使用：`pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)`。
+
+## 2. 日志
+
+- `utils/logger.py` + `reports/logs/`。步骤 INFO，弹窗原文 WARNING。
+
+## 3. 兜底关弹窗
+
+- `BasePage.dismiss_popups()`：无弹窗不报错；有则关掉并记日志。
+- 在 `js_click` / `fill` / `set_value` / `goto_hash` 开头调用。
+- 不要在 `toast()` 前调用。

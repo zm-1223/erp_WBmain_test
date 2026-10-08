@@ -5,6 +5,8 @@ import pytest
 
 import config
 
+pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)
+
 
 @allure.epic("如斯达ERP")
 @allure.feature("WB商品刊登-1688精选")

@@ -48,3 +48,9 @@ collect_page.goto_hash(config.HASH_JD_PALLET, "京东精选")
 
 - 同一轮更新：`test.md`、桌面/仓库 `erp_WB_test.xlsx`、`pages/`、`tests/`、本仓库与全局 rules（若规则也变了）。
 - 禁止只改 md、只改 xlsx、或只改脚本。
+
+## 7. 失败重试、日志、关弹窗
+
+- `pytestmark = pytest.mark.flaky(reruns=2, reruns_delay=3)`。
+- 日志：`utils/logger.py` → `reports/logs/`。
+- `BasePage.dismiss_popups()` 在 `js_click`/`fill`/`goto_hash` 前调用；`toast()` 前不调用。

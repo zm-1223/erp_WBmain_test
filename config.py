@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parent
 REPORTS_DIR = ROOT / "reports"
 ALLURE_RESULTS = REPORTS_DIR / "allure-results"
 SCREENSHOT_DIR = REPORTS_DIR / "screenshots"
+LOG_DIR = REPORTS_DIR / "logs"
 
 BASE_URL = os.getenv("ERP_BASE_URL", "https://russtar.wildberries.center")
 USERNAME = os.getenv("ERP_USERNAME", "luojiaxing1")
