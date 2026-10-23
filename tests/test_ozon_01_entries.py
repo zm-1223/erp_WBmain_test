@@ -83,3 +83,25 @@ class TestOzonEntries:
         pallet_page.open("jd").wait_loaded("jd")
         opts = " ".join(pallet_page.shop_options())
         assert "OZON" in opts.upper() or "Ozon" in opts
+
+    @allure.story("入口/采集到草稿箱")
+    @allure.title("OZ42 手动采集勾选商品后可多店铺采集到 Ozon 草稿箱")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
+    def test_oz42_collect_multi_ozon_shops(self, collect_page, draft_page):
+        collect_page.ensure_card()
+        draft_page.open_ozon()
+        before = draft_page.all_count()
+        collect_page.ensure_card()
+        if collect_page.select_cards(1) < 1:
+            pytest.skip("手动采集卡片无法勾选")
+        blob = collect_page.click_collect_to_draft(platform="Ozon", shop_count=2)
+        if not collect_page.batch_dialog_seen:
+            raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
+        if collect_page.batch_shop_count < 2:
+            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {collect_page.batch_shop_count}")
+        assert f"将写入{collect_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
+        draft_page.open_ozon()
+        draft_page.wait_all_count_at_least(before + collect_page.batch_shop_count, ozon=True)
+        text = draft_page.page_text()
+        assert config.OFFER_ID in text or "1688" in text or "Ozon" in text or "OZON" in text

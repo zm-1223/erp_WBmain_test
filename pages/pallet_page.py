@@ -109,15 +109,20 @@ class PalletPage(BasePage):
                 return els[0]
             raise AssertionError("一键刊登按钮未出现或不可点击")
 
-    def click_batch_draft(self, confirm: bool = True):
-        self.button("批量生成草稿")
-        tip = self.popup_text(timeout=2) or self.toast()
+    def click_batch_draft(self, confirm: bool = True, platform: str = "Wildberries", shop_count: int = 2):
+        """勾选商品后点批量采集。新弹窗可同时勾多个店铺；未勾选商品则只返回提示。"""
+        dialog = self.open_batch_draft_dialog(("批量采集到草稿箱", "批量生成草稿", "采集到草稿箱"))
+        if dialog is not None:
+            return self.complete_target_shops(platform, shop_count, confirm)
+        tip = self.popup_text(timeout=2) or self.toast(2) or ""
+        if any(k in tip for k in ("勾选", "请先", "至少", "选择")):
+            return tip
         if confirm:
             self.confirm_popups()
         else:
             self.cancel_popups()
-        time.sleep(0.8)
-        return tip or self.toast() or self.page_text()
+        time.sleep(0.6)
+        return tip or self.page_text()
 
     def select_first(self, n: int = 1) -> int:
         self.dismiss_popups()
@@ -441,5 +446,7 @@ class PalletPage(BasePage):
             "货源价": "货源价" in text,
             "目标店铺": "目标店铺" in text or "店铺" in text,
             "本页全选": "本页全选" in text,
-            "批量生成草稿": "批量生成草稿" in text,
+            "批量生成草稿": any(
+                k in text for k in ("批量生成草稿", "批量采集到草稿箱", "采集到草稿箱")
+            ),
         }

@@ -52,7 +52,7 @@ class TestOzonPallet:
             assert any(k in tip for k in ("勾选", "请先", "至少", "选择")), f"{name}: {tip[:300]}"
 
     @allure.story("入口/批量草稿")
-    @allure.title("OZ34 1688精选批量生成 Ozon 草稿核对来源")
+    @allure.title("OZ34 1688精选可多店铺批量采集到 Ozon 草稿箱")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     @pytest.mark.need_goods
@@ -60,16 +60,20 @@ class TestOzonPallet:
         pallet_page.open("1688").wait_loaded("1688")
         if not pallet_page.has_goods():
             pytest.skip("1688精选无商品")
-        _need_ozon_shop(pallet_page)
         if pallet_page.select_first(1) < 1:
             pytest.skip("1688精选无法勾选")
-        pallet_page.click_batch_draft(confirm=True)
+        blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
+        if not pallet_page.batch_dialog_seen:
+            raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
+        if pallet_page.batch_shop_count < 2:
+            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+        assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
         draft_page.open_ozon()
         blob = draft_page.wait_origin("1688精选", ozon=True)
         assert "1688精选" in blob
 
     @allure.story("入口/批量草稿")
-    @allure.title("OZ35 淘宝精选批量生成 Ozon 草稿核对来源")
+    @allure.title("OZ35 淘宝精选可多店铺批量采集到 Ozon 草稿箱")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     @pytest.mark.need_goods
@@ -77,10 +81,14 @@ class TestOzonPallet:
         pallet_page.open("tb").wait_loaded("tb")
         if not pallet_page.has_goods():
             pytest.skip("淘宝精选无商品")
-        _need_ozon_shop(pallet_page)
         if pallet_page.select_first(1) < 1:
             pytest.skip("淘宝精选无法勾选")
-        pallet_page.click_batch_draft(confirm=True)
+        blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
+        if not pallet_page.batch_dialog_seen:
+            raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
+        if pallet_page.batch_shop_count < 2:
+            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+        assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
         draft_page.open_ozon()
         blob = draft_page.wait_origin("淘宝精选", ozon=True)
         assert "淘宝精选" in blob
@@ -97,15 +105,18 @@ class TestOzonPallet:
         draft_page.open_ozon()
         before = draft_page.all_count()
         pallet_page.open("jd").wait_loaded("jd")
-        _need_ozon_shop(pallet_page)
         pallet_page.select_first(1)
-        pallet_page.click_batch_draft(confirm=False)
+        pallet_page.click_batch_draft(confirm=False, platform="Ozon", shop_count=2)
         draft_page.open_ozon()
-        assert draft_page.all_count() == before, "点取消后 Ozon 草稿箱条数不应增加"
+        assert draft_page.all_count() == before, "关闭店铺弹窗后 Ozon 草稿箱条数不应增加"
         pallet_page.open("jd").wait_loaded("jd")
-        _need_ozon_shop(pallet_page)
         pallet_page.select_first(1)
-        pallet_page.click_batch_draft(confirm=True)
+        blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
+        if not pallet_page.batch_dialog_seen:
+            raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
+        if pallet_page.batch_shop_count < 2:
+            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+        assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
         draft_page.open_ozon()
         draft_page.wait_origin("京东精选", ozon=True)
-        assert draft_page.all_count() >= before
+        assert draft_page.all_count() >= before + pallet_page.batch_shop_count

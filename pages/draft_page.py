@@ -28,12 +28,16 @@ class DraftPage(BasePage):
         return self
 
     def open_ozon(self):
-        try:
-            self.goto_hash(config.HASH_OZON_DRAFT, "草稿")
-        except Exception:
-            self.goto_hash(config.HASH_DRAFT, "草稿箱")
-        time.sleep(0.8)
-        return self
+        for hash_path in (
+            config.HASH_OZON_DRAFT,
+            "#/goods/publish?tab=ozon/draft",
+            "#/goods/publish?tab=ozon-draft",
+        ):
+            self.goto_hash(hash_path, "草稿")
+            if "ozon" in (self.url() or "").lower():
+                time.sleep(0.8)
+                return self
+        raise AssertionError(f"未打开 Ozon 草稿箱: {self.url()}")
 
     def all_count(self) -> int:
         m = re.search(r"全部\s*(\d+)", self.page_text())
@@ -103,6 +107,56 @@ class DraftPage(BasePage):
             time.sleep(1)
             return self
         raise AssertionError(f"草稿箱没有来源含「{keyword}」的「编辑」")
+
+    def search_keyword(self, keyword: str):
+        boxes = [
+            e
+            for e in self.driver.find_elements(
+                By.CSS_SELECTOR, "input[placeholder*='标题'], input[placeholder*='货源']"
+            )
+            if e.is_displayed()
+        ]
+        if not boxes:
+            return self
+        self.driver.execute_script(
+            """
+            const el = arguments[0], val = arguments[1];
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            setter.call(el, val);
+            el.dispatchEvent(new Event('input', {bubbles:true}));
+            el.dispatchEvent(new Event('change', {bubbles:true}));
+            """,
+            boxes[0],
+            keyword,
+        )
+        btns = [
+            b
+            for b in self.driver.find_elements(By.XPATH, "//button[normalize-space()='搜索']")
+            if b.is_displayed()
+        ]
+        if btns:
+            self.driver.execute_script("arguments[0].click();", btns[0])
+            time.sleep(1)
+        return self
+
+    def reopen_edit(self, marker: str):
+        """按标题搜这条草稿再点编辑。列表标题没换成修改值时，重置后点最新一条。"""
+        self.search_keyword(marker[:12])
+        time.sleep(0.6)
+        if marker[:4] in self.page_text() and "编辑" in self.page_text():
+            try:
+                return self.click_edit_for_origin(marker[:4])
+            except AssertionError:
+                return self.click_edit()
+        resets = [
+            b
+            for b in self.driver.find_elements(By.XPATH, "//button[normalize-space()='重置']")
+            if b.is_displayed()
+        ]
+        if resets:
+            self.driver.execute_script("arguments[0].click();", resets[0])
+            time.sleep(1)
+        return self.click_edit()
 
     def click_edit(self):
         btns = [b for b in self.finds(self.EDIT) if b.is_displayed()]

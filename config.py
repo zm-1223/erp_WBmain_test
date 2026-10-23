@@ -38,7 +38,7 @@ HASH_1688_PALLET = "#/goods/collection?tab=pallet"
 HASH_JD_PALLET = "#/goods/collection?tab=jd-pallet"
 HASH_TB_PALLET = "#/goods/collection?tab=taobao-pallet"
 HASH_DRAFT = "#/goods/publish?tab=draft"
-HASH_OZON_DRAFT = os.getenv("ERP_OZON_DRAFT_HASH", "#/goods/ozon-publish?tab=draft")
+HASH_OZON_DRAFT = os.getenv("ERP_OZON_DRAFT_HASH", "#/goods/publish?tab=ozon/draft")
 WB_LISTING_URL_MARK = "wb-one-click-listing"
 OZON_LISTING_URL_MARKS = (
     "ozon-one-click-listing",

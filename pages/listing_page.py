@@ -184,6 +184,159 @@ class WbListingPage(BasePage):
         self.fill_ru_title("")
         return self
 
+    def _visible_inputs(self, els) -> list:
+        out = []
+        for el in els:
+            try:
+                if el.is_displayed():
+                    out.append(el)
+            except Exception:
+                continue
+        return out
+
+    def _write_input(self, el, value: str):
+        self.driver.execute_script(
+            """
+            const el = arguments[0], val = arguments[1];
+            const proto = el.tagName === 'TEXTAREA'
+                ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+            setter.call(el, val);
+            el.dispatchEvent(new Event('input', {bubbles:true}));
+            el.dispatchEvent(new Event('change', {bubbles:true}));
+            """,
+            el,
+            value,
+        )
+        return (el.get_attribute("value") or "").strip()
+
+    def _field_inputs(self, label: str):
+        item = self.form_item(label)
+        if item is None:
+            return []
+        return self._visible_inputs(item.find_elements(By.CSS_SELECTOR, "input, textarea"))
+
+    def fill_desc(self, value: str) -> str:
+        els = self._field_inputs("描述") or self._visible_inputs(self.finds(self.DESC))
+        if not els:
+            return ""
+        return self._write_input(els[0], value)
+
+    def desc_value(self) -> str:
+        els = self._field_inputs("描述") or self._visible_inputs(self.finds(self.DESC))
+        return (els[0].get_attribute("value") or "").strip() if els else ""
+
+    def fill_source_note(self, value: str) -> str:
+        els = self._field_inputs("货源备注") or self._visible_inputs(self.finds(self.SOURCE_NOTE))
+        if not els:
+            return ""
+        return self._write_input(els[0], value)
+
+    def source_note_value(self) -> str:
+        els = self._field_inputs("货源备注") or self._visible_inputs(self.finds(self.SOURCE_NOTE))
+        return (els[0].get_attribute("value") or "").strip() if els else ""
+
+    def _plain_inputs(self, els) -> list:
+        plain = []
+        for el in self._visible_inputs(els):
+            kind = self.driver.execute_script(
+                "return arguments[0].closest('.el-select,.el-cascader') ? 'select' : 'plain'",
+                el,
+            )
+            if kind == "plain":
+                plain.append(el)
+        return plain
+
+    def fill_brand(self, value: str) -> str:
+        els = self._plain_inputs(self._field_inputs("品牌") or self.finds(self.BRAND))
+        if not els:
+            return ""
+        return self._write_input(els[0], value)
+
+    def brand_value(self) -> str:
+        els = self._plain_inputs(self._field_inputs("品牌") or self.finds(self.BRAND))
+        return (els[0].get_attribute("value") or "").strip() if els else ""
+
+    def apply_draft_edits(self, title: str, desc: str, note: str, brand: str) -> dict:
+        """改刊登页上能直接填写的项。下拉框（如品牌选择）不硬写。"""
+        self.fill_cn_title(title)
+        written = {"title": self.cn_title_value() or title}
+        ru_els = self._visible_inputs(self.finds(self.RU_TITLE)) or self._visible_inputs(
+            self.driver.find_elements(By.XPATH, "//*[contains(normalize-space(),'俄语')]/following::textarea[1]")
+        )
+        if ru_els:
+            self.fill_ru_title(title + "RU")
+            got = self.ru_title_value()
+            if got:
+                written["ru"] = got
+        got = self.fill_desc(desc)
+        if got:
+            written["desc"] = got
+        got = self.fill_source_note(note)
+        if got:
+            written["note"] = got
+        got = self.fill_brand(brand)
+        if got:
+            written["brand"] = got
+        weights = self._visible_inputs(self.finds(self.WEIGHT))
+        if not weights:
+            weights = self._visible_inputs(
+                self.driver.find_elements(
+                    By.XPATH, "//*[contains(normalize-space(),'包装重量')]/following::input[1]"
+                )
+            )
+        if weights:
+            got = self._write_input(weights[0], "1.25")
+            if got:
+                written["weight"] = got
+        dims = self._visible_inputs(self.finds(self.DIMS))[:3]
+        if len(dims) >= 3:
+            got_dims = [self._write_input(el, val) for el, val in zip(dims, ("41", "31", "6"))]
+            if any(got_dims):
+                written["dims"] = got_dims
+        prices = self.listing_prices()
+        if prices:
+            got = self._write_input(prices[0], "188")
+            if got:
+                written["price"] = got
+        return written
+
+    def _num_kept(self, raw: str, expect: str) -> bool:
+        try:
+            return abs(float(raw) - float(expect)) < 0.05
+        except (TypeError, ValueError):
+            return expect in (raw or "")
+
+    def assert_draft_edits(self, written: dict):
+        title = self.cn_title_value()
+        expect = written.get("title") or ""
+        assert expect[:8] in title, f"再次打开后标题未保留: 期望{expect!r} 实际{title!r}"
+        if "ru" in written:
+            got = self.ru_title_value()
+            assert written["ru"][:6] in got, f"再次打开后俄语标题未保留: 期望{written['ru']!r} 实际{got!r}"
+        if "desc" in written:
+            got = self.desc_value()
+            assert written["desc"][:8] in got, f"再次打开后描述未保留: 期望{written['desc']!r} 实际{got!r}"
+        if "note" in written:
+            got = self.source_note_value()
+            assert written["note"] in got, f"再次打开后货源备注未保留: 期望{written['note']!r} 实际{got!r}"
+        if "brand" in written:
+            got = self.brand_value()
+            assert written["brand"] in got, f"再次打开后品牌未保留: 期望{written['brand']!r} 实际{got!r}"
+        if "weight" in written:
+            got = self.package_weight_raw()
+            assert self._num_kept(got, "1.25"), f"再次打开后包装重量未保留: 实际{got!r}"
+        if "dims" in written:
+            got = self.package_dim_raws()
+            for name, expect_n, actual in zip(("长", "宽", "高"), ("41", "31", "6"), got):
+                assert self._num_kept(actual, expect_n), (
+                    f"再次打开后包装尺寸{name}未保留: 实际{actual!r}"
+                )
+        if "price" in written:
+            got = self.listing_price_value()
+            assert self._num_kept(got, "188"), f"再次打开后刊登价未保留: 实际{got!r}"
+        return self
+
     def source_url_value(self) -> str:
         els = self.finds(self.SOURCE_URL)
         if not els:
@@ -416,11 +569,42 @@ class WbListingPage(BasePage):
         return mapped
 
     def save_draft(self):
-        btns = [b for b in self.finds(self.SAVE_DRAFT) if b.is_displayed()]
-        if not btns:
-            raise AssertionError("未找到「生成刊登草稿」")
-        self.js_click(btns[0])
-        time.sleep(1.2)
+        """新建页是「生成刊登草稿」，已有草稿的编辑页可能是「保存」。"""
+        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(0.2)
+        chosen = None
+        for label in ("生成刊登草稿", "保存草稿", "保存修改", "保存"):
+            for btn in self.driver.find_elements(By.XPATH, f"//button[normalize-space()='{label}']"):
+                try:
+                    if not btn.is_displayed():
+                        continue
+                    in_dialog = self.driver.execute_script(
+                        "return !!arguments[0].closest('.el-dialog,.el-message-box')",
+                        btn,
+                    )
+                    if in_dialog:
+                        continue
+                    chosen = btn
+                    break
+                except Exception:
+                    continue
+            if chosen is not None:
+                break
+        if chosen is None:
+            texts = []
+            for btn in self.driver.find_elements(By.CSS_SELECTOR, "button"):
+                try:
+                    name = (btn.text or "").strip()
+                    if btn.is_displayed() and name:
+                        texts.append(name)
+                except Exception:
+                    continue
+            raise AssertionError(f"未找到「生成刊登草稿」或「保存」，当前按钮: {texts[:12]}")
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", chosen)
+        self.driver.execute_script("arguments[0].click();", chosen)
+        time.sleep(0.4)
+        self.confirm_popups(timeout=2)
+        time.sleep(1)
         return self.toast() or self.popup_text() or self.page_text()
 
     def click_publish(self):

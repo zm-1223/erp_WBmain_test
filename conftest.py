@@ -50,7 +50,10 @@ def driver():
     """全量用例共用一个 Chrome，避免重复打开网站。"""
     drv = _build_driver()
     drv.get(app_cfg.BASE_URL + "/" + app_cfg.HASH_COLLECT)
-    LoginPage(drv).login()
+    login = LoginPage(drv)
+    login.login()
+    if login.need_login():
+        login.login()
     CollectionPage(drv).open_collect()
     yield drv
     if not app_cfg.KEEP_BROWSER:

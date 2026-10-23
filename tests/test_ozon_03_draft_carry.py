@@ -282,7 +282,7 @@ class TestOzonDraftCarry:
         assert any(k in url.lower() for k in ("taobao", "tmall", "tb", "淘宝", "offer"))
 
     @allure.story("入口/批量草稿")
-    @allure.title("OZ29 京东精选批量生成 Ozon 草稿核对来源")
+    @allure.title("OZ29 京东精选可多店铺批量采集到 Ozon 草稿箱")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     @pytest.mark.need_goods
@@ -290,11 +290,15 @@ class TestOzonDraftCarry:
         pallet_page.open("jd").wait_loaded("jd")
         if not pallet_page.has_goods():
             pytest.skip("京东精选无商品")
-        pallet_page.choose_ozon_shop()
         n = pallet_page.select_first(1)
         if n < 1:
             pytest.skip("京东精选无法勾选")
-        pallet_page.click_batch_draft(confirm=True)
+        blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
+        if not pallet_page.batch_dialog_seen:
+            raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
+        if pallet_page.batch_shop_count < 2:
+            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+        assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
         draft_page.open_ozon()
         blob = draft_page.wait_origin("京东精选", ozon=True)
         assert any(k in blob for k in ("Ozon", "OZON", "一键Ozon", "京东精选")), blob[:400]
@@ -312,24 +316,65 @@ class TestOzonDraftCarry:
         assert draft_page.batch_submit_disabled() or "可刊登 0" in text or "待完善" in text
 
     @allure.story("流程/编辑回填")
-    @allure.title("OZ31 Ozon 草稿编辑回填刊登页")
-    @allure.severity(allure.severity_level.NORMAL)
-    @pytest.mark.p1
+    @allure.title("OZ31 Ozon 草稿编辑改完保存后再打开核对")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
     def test_oz31_draft_edit_roundtrip(self, ozon_listing_from_1688, draft_page, ozon_listing_page):
         page = ozon_listing_from_1688
-        marker = "自动化Ozon标题回填"
-        page.fill_cn_title(marker)
+        written = page.apply_draft_edits(
+            "OZ回填改项",
+            "回填描述已修改",
+            "回填货源备注",
+            "AutoBrand",
+        )
+        assert written.get("title"), "标题没有写入"
+        assert any(k in written for k in ("ru", "desc", "note", "brand", "weight", "dims", "price")), (
+            f"标题以外的字段都没写上: {written}"
+        )
         page.save_draft()
         draft_page.open_ozon()
         if "编辑" not in draft_page.page_text():
             pytest.skip("Ozon 草稿箱无编辑入口")
-        try:
-            draft_page.click_edit_for_origin("Ozon")
-        except AssertionError:
-            draft_page.click_edit()
+        draft_page.reopen_edit(written["title"])
         ozon_listing_page.wait_open()
-        blob = ozon_listing_page.cn_title_value() + ozon_listing_page.page_text()
-        assert marker[:8] in blob or ozon_listing_page.has_recommended_category()
+        ozon_listing_page.assert_draft_edits(written)
+        assert ozon_listing_page.has_recommended_category(), (
+            f"再次打开后推荐类目丢失: {ozon_listing_page.category_value()!r}"
+        )
+
+    @allure.story("流程/编辑保存再打开")
+    @allure.title("OZ43 草稿编辑修改标题描述备注后再次打开仍保留")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
+    def test_oz43_edit_save_reopen(self, collect_page, ozon_listing_page, draft_page):
+        draft_page.open_ozon()
+        if "编辑" not in draft_page.page_text():
+            collect_page.ensure_card()
+            collect_page.click_ozon_listing()
+            ozon_listing_page.wait_open()
+            ozon_listing_page.save_draft()
+            draft_page.open_ozon()
+        if "编辑" not in draft_page.page_text():
+            pytest.skip("Ozon 草稿箱没有可编辑草稿")
+        draft_page.click_edit()
+        ozon_listing_page.wait_open()
+        written = ozon_listing_page.apply_draft_edits(
+            "OZ草稿改项",
+            "自动化描述已修改",
+            "自动化货源备注",
+            "AutoBrand",
+        )
+        assert written.get("title"), "标题没有写入"
+        extra = [k for k in ("ru", "desc", "note", "brand", "weight", "dims", "price") if k in written]
+        assert extra, f"标题以外的字段都没写上: {written}"
+        ozon_listing_page.save_draft()
+        draft_page.open_ozon()
+        draft_page.reopen_edit(written["title"])
+        ozon_listing_page.wait_open()
+        ozon_listing_page.assert_draft_edits(written)
+        assert ozon_listing_page.has_recommended_category(), (
+            f"再次打开后推荐类目丢失: {ozon_listing_page.category_value()!r}"
+        )
 
     @allure.story("流程/必填齐全可刊登")
     @allure.title("OZ41 校验后可进入可刊登（默认不真实提交）")

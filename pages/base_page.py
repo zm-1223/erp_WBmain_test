@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import re
 import time
 
 from selenium.common.exceptions import (
@@ -335,6 +336,181 @@ class BasePage:
             value,
         )
         return el
+
+    def click_first_button(self, labels: tuple[str, ...], timeout=12):
+        """点第一个可见按钮。优先长文案，避免「采集到草稿箱」点到别的按钮。"""
+        end = time.time() + timeout
+        while time.time() < end:
+            for label in labels:
+                xp = f"//button[contains(normalize-space(), {self.quote(label)})]"
+                els = [b for b in self.driver.find_elements(By.XPATH, xp) if b.is_displayed()]
+                if els:
+                    self.js_click(els[0])
+                    return label
+            time.sleep(0.3)
+        raise AssertionError(f"未找到按钮 {labels}")
+
+    def target_shop_dialog(self):
+        for el in self.driver.find_elements(By.CSS_SELECTOR, ".el-dialog"):
+            try:
+                if el.is_displayed() and "选择目标平台和店铺" in (el.text or ""):
+                    return el
+            except Exception:
+                continue
+        return None
+
+    def _check_box(self, el):
+        cls = el.get_attribute("class") or ""
+        if "is-checked" in cls:
+            return
+        self.driver.execute_script("arguments[0].click();", el)
+        time.sleep(0.15)
+
+    def _dialog_checkboxes(self, dialog):
+        boxes = []
+        for box in dialog.find_elements(By.CSS_SELECTOR, ".el-checkbox"):
+            try:
+                if box.is_displayed():
+                    boxes.append(box)
+            except Exception:
+                continue
+        return boxes
+
+    def _row_text(self, box) -> str:
+        try:
+            text = self.driver.execute_script(
+                """
+                const el = arguments[0];
+                let node = el;
+                for (let i = 0; i < 5; i++) {
+                  const t = (node.innerText || '').trim();
+                  if (t.includes('选择目标平台') || t.length > 160) break;
+                  const lines = t.split(/\\n/).map(s => s.trim()).filter(Boolean);
+                  if (lines.includes('WB') || lines.includes('OZ') || t.includes('家')) return t;
+                  if (!node.parentElement) break;
+                  node = node.parentElement;
+                }
+                const extra = el.nextElementSibling ? (el.nextElementSibling.innerText || '').trim() : '';
+                const own = (el.innerText || '').trim();
+                if (extra === 'WB' || extra === 'OZ') return own + '\\n' + extra;
+                return own;
+                """,
+                box,
+            )
+            return (text or "").strip()
+        except Exception:
+            return (box.text or "").strip()
+
+    def _is_specific_shop(self, box, mark: str) -> bool:
+        """右侧具体店铺。只勾平台、全选、家店计数都不算店铺。"""
+        own = (box.text or "").strip()
+        first = own.splitlines()[0].strip() if own else ""
+        if "全选" in own or "清空" in own or "搜索" in own:
+            return False
+        if first.lower() in ("wildberries", "ozon", "wb", "oz"):
+            return False
+        blob = self._row_text(box)
+        if "家" in blob or "全选" in blob:
+            return False
+        lines = [ln.strip() for ln in blob.splitlines() if ln.strip()]
+        if mark not in lines:
+            return False
+        names = [ln for ln in lines if ln not in ("WB", "OZ", "Wildberries", "Ozon")]
+        return any(len(name) > 1 for name in names)
+
+    def complete_target_shops(self, platform: str = "Wildberries", shop_count: int = 2, confirm: bool = True) -> str:
+        """先勾平台，再勾右侧具体店铺。只勾平台时「将写入 0 个店铺」，不算选完。"""
+        self.batch_dialog_seen = True
+        self.batch_shop_count = 0
+        self.batch_shop_names = []
+        end = time.time() + 8
+        dialog = self.target_shop_dialog()
+        while dialog is None and time.time() < end:
+            time.sleep(0.3)
+            dialog = self.target_shop_dialog()
+        if dialog is None:
+            raise AssertionError("未出现「选择目标平台和店铺」")
+        mark = "OZ" if "ozon" in platform.lower() else "WB"
+        platform_hit = False
+        for box in self._dialog_checkboxes(dialog):
+            text = (box.text or "").strip()
+            first = text.splitlines()[0].strip().lower() if text else ""
+            if first == platform.lower() or (
+                platform.lower() in text.lower() and "家" in text and "全选" not in text
+            ):
+                self._check_box(box)
+                platform_hit = True
+                break
+        if not platform_hit:
+            raise AssertionError(f"弹窗左侧没有平台「{platform}」: {(dialog.text or '')[:300]}")
+        time.sleep(0.35)
+        dialog = self.target_shop_dialog() or dialog
+        shops = [box for box in self._dialog_checkboxes(dialog) if self._is_specific_shop(box, mark)]
+        if len(shops) < shop_count:
+            self.batch_shop_count = len(shops)
+            self.batch_dialog_text = dialog.text or ""
+            icons = [
+                i
+                for i in dialog.find_elements(By.CSS_SELECTOR, ".el-dialog__headerbtn")
+                if i.is_displayed()
+            ]
+            if icons:
+                self.driver.execute_script("arguments[0].click();", icons[0])
+                time.sleep(0.3)
+            return self.batch_dialog_text
+        names = []
+        for box in shops[:shop_count]:
+            self._check_box(box)
+            own = (box.text or "").strip()
+            names.append(own.splitlines()[0].strip() if own else self._row_text(box).splitlines()[0].strip())
+        self.batch_shop_names = names
+        time.sleep(0.3)
+        dialog = self.target_shop_dialog() or dialog
+        blob = dialog.text or ""
+        found = re.search(r"将写入\s*(\d+)\s*个店铺", blob)
+        written = int(found.group(1)) if found else 0
+        if written < shop_count:
+            raise AssertionError(
+                f"已勾具体店铺{names}，将写入只有 {written} 个。只勾平台不算选完: {blob[:300]}"
+            )
+        self.batch_shop_count = written
+        self.batch_dialog_text = blob
+        if confirm:
+            btns = [
+                b
+                for b in dialog.find_elements(
+                    By.XPATH, ".//button[normalize-space()='完成' or normalize-space()='确定']"
+                )
+                if b.is_displayed()
+            ]
+            if not btns:
+                raise AssertionError(f"店铺弹窗没有「完成」: {blob[:300]}")
+            if "is-disabled" in (btns[0].get_attribute("class") or ""):
+                raise AssertionError(f"已选具体店铺但「完成」不可用: {blob[:300]}")
+            self.driver.execute_script("arguments[0].click();", btns[0])
+            logger.info("确认多店铺草稿: 店铺=%s 将写入 %s 个", names, self.batch_shop_count)
+        else:
+            closed = False
+            for css in (".el-dialog__headerbtn", ".el-dialog__close"):
+                icons = [i for i in dialog.find_elements(By.CSS_SELECTOR, css) if i.is_displayed()]
+                if icons:
+                    self.driver.execute_script("arguments[0].click();", icons[0])
+                    closed = True
+                    break
+            if not closed:
+                self.cancel_popups(timeout=1)
+            logger.info("关闭多店铺草稿弹窗，未确定")
+        time.sleep(0.6)
+        return blob
+
+    def open_batch_draft_dialog(self, labels: tuple[str, ...] | None = None):
+        labels = labels or ("批量采集到草稿箱", "采集到草稿箱", "批量生成草稿")
+        self.batch_dialog_seen = False
+        self.batch_shop_count = 0
+        self.batch_dialog_text = ""
+        self.click_first_button(labels)
+        time.sleep(0.5)
+        return self.target_shop_dialog()
 
     def close_extra_tabs(self):
         handles = self.driver.window_handles

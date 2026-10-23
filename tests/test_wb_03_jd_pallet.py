@@ -98,18 +98,26 @@ class TestWbJdPallet:
         assert "OZON" in opts.upper() or "Ozon" in opts
 
     @allure.story("入口/批量草稿")
-    @allure.title("TC21 勾选京东商品批量生成草稿")
+    @allure.title("TC21 京东精选勾选后可多店铺批量采集到草稿箱")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     def test_tc21_batch_draft(self, pallet_page, draft_page, wb_listing_page):
         pallet_page.open("jd").wait_loaded("jd")
         if not pallet_page.has_goods():
             pytest.skip("京东精选无商品")
-        pallet_page.choose_wb_shop(config.WB_SHOP_NAME)
+        draft_page.open()
+        before = draft_page.all_count()
+        pallet_page.open("jd").wait_loaded("jd")
         pallet_page.select_first(1)
-        pallet_page.click_batch_draft()
+        blob = pallet_page.click_batch_draft(platform="Wildberries", shop_count=2)
+        if not pallet_page.batch_dialog_seen:
+            raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
+        if pallet_page.batch_shop_count < 2:
+            pytest.skip(f"Wildberries 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+        assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
         draft_page.open()
         draft_page.wait_origin("京东精选")
+        draft_page.wait_all_count_at_least(before + pallet_page.batch_shop_count)
         draft_page.click_edit_for_origin("京东精选")
         wb_listing_page.wait_open()
         assert wb_listing_page.has_recommended_category(), (

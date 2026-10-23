@@ -23,6 +23,14 @@ class LoginPage(BasePage):
         return self.toast() or self.page_text() or self.url()
 
     def login(self, username=None, password=None):
+        # 首屏可能先是空白再跳到登录。等到登录框或已进后台再决定，避免没填账号就往下走。
+        deadline = time.time() + config.EXPLICIT_WAIT
+        while time.time() < deadline:
+            if self.need_login():
+                break
+            if self.has_text("商品采集") or self.has_text("1688商品链接采集"):
+                return
+            time.sleep(0.3)
         if not self.need_login():
             return
         self.submit_credentials(username or config.USERNAME, password or config.PASSWORD)

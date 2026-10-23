@@ -75,9 +75,9 @@ class TestWbDraftSubmit:
             )
 
     @allure.story("流程/编辑回填")
-    @allure.title("TC55 草稿箱编辑回填刊登页")
-    @allure.severity(allure.severity_level.NORMAL)
-    @pytest.mark.p1
+    @allure.title("TC55 草稿编辑改完保存后再打开核对")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
     def test_tc55_edit_draft(self, draft_page, wb_listing_page):
         draft_page.open()
         if "编辑" not in draft_page.page_text():
@@ -88,6 +88,55 @@ class TestWbDraftSubmit:
         assert wb_listing_page.cn_title_value() or wb_listing_page.steps_present()
         assert wb_listing_page.has_recommended_category(), (
             f"草稿编辑页未回填推荐类目: {wb_listing_page.category_value()!r}"
+        )
+        written = wb_listing_page.apply_draft_edits(
+            "WB回填改项",
+            "回填描述已修改",
+            "回填货源备注",
+            "AutoBrand",
+        )
+        assert written.get("title"), "中文标题没有写入"
+        assert any(k in written for k in ("ru", "desc", "note", "brand", "weight", "dims", "price")), (
+            f"标题以外的字段都没写上: {written}"
+        )
+        wb_listing_page.save_draft()
+        draft_page.open()
+        draft_page.reopen_edit(written["title"])
+        wb_listing_page.wait_open()
+        wb_listing_page.assert_draft_edits(written)
+
+    @allure.story("流程/编辑保存再打开")
+    @allure.title("TC72 草稿编辑修改标题描述备注后再次打开仍保留")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.p0
+    def test_tc72_edit_save_reopen(self, collect_page, wb_listing_page, draft_page):
+        draft_page.open()
+        if "编辑" not in draft_page.page_text():
+            collect_page.ensure_card()
+            collect_page.click_wb_listing()
+            wb_listing_page.wait_open()
+            wb_listing_page.save_draft()
+            draft_page.open()
+        if "编辑" not in draft_page.page_text():
+            pytest.skip("WB 草稿箱没有可编辑草稿")
+        draft_page.click_edit()
+        wb_listing_page.wait_open()
+        written = wb_listing_page.apply_draft_edits(
+            "WB草稿改项",
+            "自动化描述已修改",
+            "自动化货源备注",
+            "AutoBrand",
+        )
+        assert written.get("title"), "中文标题没有写入"
+        extra = [k for k in ("ru", "desc", "note", "brand", "weight", "dims", "price") if k in written]
+        assert extra, f"标题以外的字段都没写上: {written}"
+        wb_listing_page.save_draft()
+        draft_page.open()
+        draft_page.reopen_edit(written["title"])
+        wb_listing_page.wait_open()
+        wb_listing_page.assert_draft_edits(written)
+        assert wb_listing_page.has_recommended_category(), (
+            f"再次打开后推荐类目丢失: {wb_listing_page.category_value()!r}"
         )
 
     @allure.story("流程/取消")

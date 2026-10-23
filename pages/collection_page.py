@@ -179,6 +179,43 @@ class CollectionPage(BasePage):
             }
         return parsed
 
+    def select_cards(self, n: int = 1) -> int:
+        self.dismiss_popups()
+        boxes = []
+        for css in (
+            ".el-card .el-checkbox",
+            "[class*='card'] .el-checkbox",
+            "[class*='goods'] .el-checkbox",
+            ".el-checkbox",
+        ):
+            boxes.extend(self.driver.find_elements(By.CSS_SELECTOR, css))
+        clicked = 0
+        for box in boxes:
+            try:
+                if not box.is_displayed():
+                    continue
+                if "is-disabled" in (box.get_attribute("class") or ""):
+                    continue
+                blob = box.text or ""
+                if "全选" in blob:
+                    continue
+                self.driver.execute_script("arguments[0].click();", box)
+                clicked += 1
+                if clicked >= n:
+                    break
+            except Exception:
+                continue
+        time.sleep(0.3)
+        return clicked
+
+    def click_collect_to_draft(self, platform: str = "Wildberries", shop_count: int = 2, confirm: bool = True):
+        """手动采集：采集到草稿箱，弹窗里可同时勾多个店铺。"""
+        dialog = self.open_batch_draft_dialog(("采集到草稿箱", "批量采集到草稿箱", "批量生成草稿"))
+        if dialog is not None:
+            return self.complete_target_shops(platform, shop_count, confirm)
+        tip = self.popup_text(timeout=2) or self.toast(2) or ""
+        return tip or self.page_text()
+
     def click_origin_link(self):
         links = [a for a in self.finds(self.ORIGIN) if a.is_displayed()]
         if not links:
