@@ -183,16 +183,59 @@ class PalletPage(BasePage):
         time.sleep(0.3)
         return self
 
+    def _displayed_select_options(self) -> list[str]:
+        opts = []
+        for o in self.driver.find_elements(
+            By.CSS_SELECTOR, ".el-select-dropdown__item, [role='option']"
+        ):
+            try:
+                text = (o.text or "").strip()
+                if o.is_displayed() and text:
+                    opts.append(text)
+            except Exception:
+                continue
+        return opts
+
     def shop_options(self) -> list[str]:
-        combos = self.driver.find_elements(By.CSS_SELECTOR, ".el-select, [role='combobox']")
+        """只点当前看得见的店铺下拉。隐藏节点的 textContent 里也有「店铺」，不能拿来点。"""
+        combos = []
+        for c in self.driver.find_elements(By.CSS_SELECTOR, ".el-select"):
+            try:
+                if c.is_displayed():
+                    combos.append(c)
+            except Exception:
+                continue
+        target = None
         for c in combos:
-            txt = (c.text or "") + (c.get_attribute("textContent") or "")
-            if "WB" in txt or "店铺" in txt or "WILDBERRIES" in txt or "OZON" in txt:
-                self.js_click(c)
-                time.sleep(0.4)
+            blob = (c.text or "").strip()
+            upper = blob.upper()
+            if "店铺" in blob or "WB" in upper or "OZON" in upper or "WILDBERRIES" in upper:
+                target = c
                 break
-        opts = self.driver.find_elements(By.CSS_SELECTOR, ".el-select-dropdown__item, [role='option']")
-        return [o.text.strip() for o in opts if o.is_displayed() and o.text.strip()]
+        if target is None:
+            target = self._select_near_label("目标店铺")
+        if target is not None:
+            self.raw_click(target)
+        end = time.time() + 3
+        while time.time() < end:
+            opts = self._displayed_select_options()
+            if opts:
+                return opts
+            time.sleep(0.2)
+        return []
+
+    def _select_near_label(self, label: str):
+        xp = (
+            f"//*[normalize-space()={self.quote(label)}]"
+            "/following::div[contains(@class,'el-select')][1]"
+        )
+        for el in self.driver.find_elements(By.XPATH, xp):
+            try:
+                if el.is_displayed():
+                    return el
+            except Exception:
+                continue
+        return None
 
     def choose_wb_shop(self, name_part: str | None = None):
         self.shop_options()
@@ -376,16 +419,18 @@ class PalletPage(BasePage):
         return self.open_one_click_menu()
 
     def _pick_menu(self, keywords: tuple[str, ...]) -> bool:
-        for el in self._visible_dropdown_items():
-            text = el.text or ""
-            if any(k in text for k in keywords):
-                self.driver.execute_script("arguments[0].click();", el)
-                time.sleep(0.25)
-                return True
+        """先匹配长文案。采集页已能用单独的「WB」进入刊登页，精选菜单同一项不能漏。"""
+        items = self._visible_dropdown_items()
+        for kw in keywords:
+            for el in items:
+                if kw in (el.text or ""):
+                    self.driver.execute_script("arguments[0].click();", el)
+                    time.sleep(0.25)
+                    return True
         return self.click_menu_item(keywords, timeout=6)
 
     def click_wb_listing(self):
-        keywords = ("WB 平台", "WB平台", "Wildberries")
+        keywords = ("WB 平台", "WB平台", "Wildberries", "WB")
         self.open_one_click_menu()
         if not self._pick_menu(keywords):
             raise AssertionError("未出现 WB 平台菜单")

@@ -18,6 +18,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 import config
+from utils.batch_dialog import is_platform_row, is_shop_row, join_flash, readable_texts, row_blobs
 from utils.logger import get_logger
 
 logger = get_logger("erp_wb.page")
@@ -244,7 +245,7 @@ class BasePage:
                 ".el-message__content, .el-notification__content, "
                 ".el-message-box__message",
             )
-            texts = [n.text.strip() for n in nodes if n.text and n.text.strip()]
+            texts = readable_texts(nodes)
             if texts:
                 last = "\n".join(texts)
                 return last
@@ -379,21 +380,20 @@ class BasePage:
         return int(n or 0)
 
     def unselected_batch_tip(self, dialog=None) -> str:
-        """未勾选商品时只取页面提示。店铺弹窗说明里的「勾选」不算这条提示。"""
-        tip = self.toast(2) or ""
+        """未勾选商品时只取顶部消息。弹窗正文里的「勾选」不算这条提示。"""
+        tip = self._flash_message()
         if dialog is not None:
             self.close_target_shop_dialog(dialog)
-        if "选择目标平台" in tip or "将写入" in tip:
-            messages = []
-            for node in self.driver.find_elements(
-                By.CSS_SELECTOR, ".el-message__content, .el-notification__content"
-            ):
-                text = (node.text or "").strip()
-                if text and "选择目标平台" not in text:
-                    messages.append(text)
-            tip = "\n".join(messages)
+            if not tip:
+                tip = self._flash_message()
         logger.info("未勾选商品，不写入草稿: %s", (tip or "")[:200])
         return tip
+
+    def _flash_message(self) -> str:
+        nodes = self.driver.find_elements(
+            By.CSS_SELECTOR, ".el-message__content, .el-notification__content"
+        )
+        return join_flash(nodes)
 
     def close_target_shop_dialog(self, dialog=None):
         dialog = dialog or self.target_shop_dialog()
@@ -428,67 +428,55 @@ class BasePage:
         self.driver.execute_script("arguments[0].click();", el)
         time.sleep(0.15)
 
-    def _platform_checkbox(self, dialog, platform: str):
-        """平台名写在复选框旁边。只认带「家店」且只有这一家平台的那一行。"""
-        return self.driver.execute_script(
-            """
-            const dialog = arguments[0], platform = arguments[1];
-            const nodes = dialog.querySelectorAll('div,span,p,label');
-            for (const el of nodes) {
-              const own = (el.innerText || '').trim();
-              if (own !== platform) continue;
-              let node = el;
-              for (let i = 0; i < 6; i++) {
-                if (!node) break;
-                const t = (node.innerText || '').trim();
-                if (t.includes('选择目标平台') || t.length > 90) break;
-                const lines = t.split(/\\n/).map(s => s.trim()).filter(Boolean);
-                const plats = lines.filter(ln => ln === 'Wildberries' || ln === 'Ozon');
-                const boxes = [...node.querySelectorAll('.el-checkbox')].filter(
-                  b => !/全选|清空/.test(b.innerText || '')
-                );
-                if (boxes.length === 1 && t.includes('家') && plats.length === 1 && plats[0] === platform) {
-                  return boxes[0];
-                }
-                node = node.parentElement;
-              }
-            }
-            return null;
-            """,
+    def _checkbox_rows(self, dialog):
+        """每个可见复选框带上自身、左右邻居和短祖先的文字。点哪一个由 Python 判定。"""
+        rows = self.driver.execute_script(
+                """
+                const dialog = arguments[0];
+                const shown = (el) => {
+                  if (!el) return false;
+                  const s = window.getComputedStyle(el);
+                  if (s.display === 'none' || s.visibility === 'hidden') return false;
+                  const r = el.getBoundingClientRect();
+                  return r.width > 0 && r.height > 0;
+                };
+                return [...dialog.querySelectorAll('.el-checkbox')].filter(shown).map((box) => {
+                  const ancestors = [];
+                  let node = box;
+                  for (let i = 0; i < 4; i++) {
+                    const parent = node.parentElement;
+                    if (!parent || !dialog.contains(parent)) break;
+                    const t = (parent.innerText || '').trim();
+                    if (!t || t.includes('选择目标平台') || t.length > 240) break;
+                    ancestors.push(t);
+                    node = parent;
+                  }
+                  return {
+                    el: box,
+                    own: (box.innerText || '').trim(),
+                    next: box.nextElementSibling ? (box.nextElementSibling.innerText || '').trim() : '',
+                    prev: box.previousElementSibling ? (box.previousElementSibling.innerText || '').trim() : '',
+                    ancestors,
+                  };
+                });
+                """,
             dialog,
-            platform,
         )
+        return rows or []
+
+    def _platform_checkbox(self, dialog, platform: str):
+        """左侧平台行是「平台名 + N家店」。右侧分组标题只有平台名，不能当成这一行。"""
+        for row in self._checkbox_rows(dialog):
+            if is_platform_row(row_blobs(row), platform):
+                return row.get("el")
+        return None
 
     def _shop_checkbox(self, dialog, keyword: str):
-        """按店铺名找右侧具体店铺，不点平台行和全选。"""
-        return self.driver.execute_script(
-            """
-            const dialog = arguments[0], keyword = (arguments[1] || '').toLowerCase();
-            const nodes = dialog.querySelectorAll('div,span,p,label');
-            for (const el of nodes) {
-              const own = (el.innerText || '').trim();
-              if (!own || own.length > 40 || !own.toLowerCase().includes(keyword)) continue;
-              if (own === 'WB' || own === 'OZ' || own.includes('家') || own.includes('全选')) continue;
-              let node = el;
-              for (let i = 0; i < 6; i++) {
-                if (!node) break;
-                const t = (node.innerText || '').trim();
-                if (t.includes('选择目标平台') || t.length > 90) break;
-                const lines = t.split(/\\n/).map(s => s.trim()).filter(Boolean);
-                const boxes = [...node.querySelectorAll('.el-checkbox')].filter(
-                  b => !/全选|清空/.test(b.innerText || '')
-                );
-                if (boxes.length === 1 && (lines.includes('WB') || lines.includes('OZ')) && !t.includes('家')) {
-                  return boxes[0];
-                }
-                node = node.parentElement;
-              }
-            }
-            return null;
-            """,
-            dialog,
-            keyword,
-        )
+        """按店铺名找右侧具体店铺。店名旁边是 WB 或 OZ，平台行带「家」不算店铺。"""
+        for row in self._checkbox_rows(dialog):
+            if is_shop_row(row_blobs(row), keyword):
+                return row.get("el")
+        return None
 
     def _dialog_checkboxes(self, dialog):
         boxes = []

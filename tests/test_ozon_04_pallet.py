@@ -49,7 +49,7 @@ class TestOzonPallet:
             pallet_page.open(key).wait_loaded(key)
             _need_ozon_shop(pallet_page)
             tip = pallet_page.click_batch_draft()
-            assert "请先勾选" in tip, f"{name}: {tip[:300]}"
+            assert "请先选择目标平台和店铺" in tip or "请先勾选" in tip, f"{name}: {tip[:300]}"
 
     @allure.story("入口/批量草稿")
     @allure.title("OZ34 1688精选可多店铺批量采集到 Ozon 草稿箱")

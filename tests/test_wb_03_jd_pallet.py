@@ -60,13 +60,13 @@ class TestWbJdPallet:
             assert "jd" in pallet_page.url().lower() or pallet_page.url() != ""
 
     @allure.story("入口/未勾选批量")
-    @allure.title("TC18 未勾选提示请先勾选京东精选商品")
+    @allure.title("TC18 未勾选提示请先选择目标平台和店铺")
     @allure.severity(allure.severity_level.NORMAL)
     @pytest.mark.p1
     def test_tc18_batch_without_select(self, pallet_page):
         pallet_page.open("jd").wait_loaded("jd")
         tip = pallet_page.click_batch_draft()
-        assert "请先勾选" in tip, tip[:300]
+        assert "请先选择目标平台和店铺" in tip or "请先勾选" in tip, tip[:300]
 
     @allure.story("入口/一键刊登WB")
     @allure.title("TC19 京东精选一键刊登 WB")

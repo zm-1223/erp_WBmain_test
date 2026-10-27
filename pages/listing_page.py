@@ -81,6 +81,31 @@ class WbListingPage(BasePage):
         blob = (item.text if item is not None else "") + self.page_text()
         return "荐" in blob
 
+    def _input_in_labeled_item(self, label: str):
+        """输入框包在「包装重量」这一格里面时，following::input 找不到它。取文字最短的那一格。"""
+        xp = (
+            "//div[contains(@class,'el-form-item')]"
+            f"[.//*[contains(normalize-space(), {self.quote(label)})]]"
+        )
+        ranked = []
+        for item in self.driver.find_elements(By.XPATH, xp):
+            try:
+                if not item.is_displayed():
+                    continue
+                inputs = [
+                    e
+                    for e in item.find_elements(By.CSS_SELECTOR, "input, textarea")
+                    if e.is_displayed()
+                ]
+            except Exception:
+                continue
+            if inputs:
+                ranked.append((len(item.text or ""), inputs[0]))
+        if not ranked:
+            return None
+        ranked.sort(key=lambda pair: pair[0])
+        return ranked[0][1]
+
     def package_weight_raw(self) -> str:
         els = [e for e in self.finds(self.WEIGHT) if e.is_displayed()]
         if not els:
@@ -89,7 +114,10 @@ class WbListingPage(BasePage):
             )
             els = [e for e in els if e.is_displayed()]
         if not els:
-            return ""
+            el = self._input_in_labeled_item("包装重量")
+            if el is None:
+                return ""
+            return (el.get_attribute("value") or "").strip()
         return (els[0].get_attribute("value") or "").strip()
 
     def package_dim_raws(self) -> list[str]:
@@ -338,12 +366,30 @@ class WbListingPage(BasePage):
         return self
 
     def source_url_value(self) -> str:
-        els = self.finds(self.SOURCE_URL)
-        if not els:
-            els = self.driver.find_elements(
+        """货源链接在输入框 value 里，不在页面正文。空框跳过，再找标签同一格里的框。"""
+        candidates = list(self.finds(self.SOURCE_URL))
+        candidates.extend(
+            self.driver.find_elements(
                 By.XPATH, "//*[normalize-space()='货源地址']/following::input[1]"
             )
-        return (els[0].get_attribute("value") or "") if els else ""
+        )
+        for label in ("货源地址", "货源链接", "货源商品链接"):
+            el = self._input_in_labeled_item(label)
+            if el is not None:
+                candidates.append(el)
+        seen = set()
+        for el in candidates:
+            ident = getattr(el, "id", None)
+            if ident in seen:
+                continue
+            seen.add(ident)
+            try:
+                val = (el.get_attribute("value") or "").strip()
+            except Exception:
+                continue
+            if val:
+                return val
+        return ""
 
     def barcode_readonly(self) -> bool:
         els = self.finds(self.BARCODE)

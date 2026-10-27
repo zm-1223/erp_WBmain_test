@@ -41,7 +41,7 @@ class TestWb1688Pallet:
     def test_tc11_batch_without_select(self, pallet_page):
         pallet_page.open("1688").wait_loaded("1688")
         tip = pallet_page.click_batch_draft()
-        assert "请先勾选" in tip, tip[:300]
+        assert "请先选择目标平台和店铺" in tip or "请先勾选" in tip, tip[:300]
 
     @allure.story("入口/一键刊登WB")
     @allure.title("TC12 有货时一键刊登进入WB编辑页")

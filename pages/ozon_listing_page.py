@@ -159,7 +159,9 @@ class OzonListingPage(WbListingPage):
                 )
                 if e.is_displayed()
             ]
-        return els[0] if els else None
+        if els:
+            return els[0]
+        return self._input_in_labeled_item("包装重量")
 
     def set_weight(self, value: str):
         el = self._weight_el()
