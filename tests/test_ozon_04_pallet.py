@@ -49,7 +49,7 @@ class TestOzonPallet:
             pallet_page.open(key).wait_loaded(key)
             _need_ozon_shop(pallet_page)
             tip = pallet_page.click_batch_draft()
-            assert any(k in tip for k in ("勾选", "请先", "至少", "选择")), f"{name}: {tip[:300]}"
+            assert "请先勾选" in tip, f"{name}: {tip[:300]}"
 
     @allure.story("入口/批量草稿")
     @allure.title("OZ34 1688精选可多店铺批量采集到 Ozon 草稿箱")
@@ -62,15 +62,16 @@ class TestOzonPallet:
             pytest.skip("1688精选无商品")
         if pallet_page.select_first(1) < 1:
             pytest.skip("1688精选无法勾选")
+        wb_before, oz_before = draft_page.both_counts()
+        pallet_page.open("1688").wait_loaded("1688")
+        pallet_page.select_first(1)
         blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
         if not pallet_page.batch_dialog_seen:
             raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
         if pallet_page.batch_shop_count < 2:
-            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+            pytest.skip(f"同江和 Minjin 未同时写入，实际 {pallet_page.batch_shop_count}")
         assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
-        draft_page.open_ozon()
-        blob = draft_page.wait_origin("1688精选", ozon=True)
-        assert "1688精选" in blob
+        draft_page.expect_one_draft_each(wb_before, oz_before, "1688精选")
 
     @allure.story("入口/批量草稿")
     @allure.title("OZ35 淘宝精选可多店铺批量采集到 Ozon 草稿箱")
@@ -83,15 +84,16 @@ class TestOzonPallet:
             pytest.skip("淘宝精选无商品")
         if pallet_page.select_first(1) < 1:
             pytest.skip("淘宝精选无法勾选")
+        wb_before, oz_before = draft_page.both_counts()
+        pallet_page.open("tb").wait_loaded("tb")
+        pallet_page.select_first(1)
         blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
         if not pallet_page.batch_dialog_seen:
             raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
         if pallet_page.batch_shop_count < 2:
-            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+            pytest.skip(f"同江和 Minjin 未同时写入，实际 {pallet_page.batch_shop_count}")
         assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
-        draft_page.open_ozon()
-        blob = draft_page.wait_origin("淘宝精选", ozon=True)
-        assert "淘宝精选" in blob
+        draft_page.expect_one_draft_each(wb_before, oz_before, "淘宝精选")
 
     @allure.story("弹窗/批量草稿确认取消")
     @allure.title("OZ36 批量草稿取消不写入、确定才写入 Ozon 草稿箱")
@@ -102,21 +104,20 @@ class TestOzonPallet:
         pallet_page.open("jd").wait_loaded("jd")
         if not pallet_page.has_goods():
             pytest.skip("京东精选无商品")
-        draft_page.open_ozon()
-        before = draft_page.all_count()
+        wb_before, oz_before = draft_page.both_counts()
         pallet_page.open("jd").wait_loaded("jd")
         pallet_page.select_first(1)
         pallet_page.click_batch_draft(confirm=False, platform="Ozon", shop_count=2)
+        draft_page.open()
+        assert draft_page.all_count() == wb_before, "关闭店铺弹窗后 WB 草稿箱条数不应增加"
         draft_page.open_ozon()
-        assert draft_page.all_count() == before, "关闭店铺弹窗后 Ozon 草稿箱条数不应增加"
+        assert draft_page.all_count() == oz_before, "关闭店铺弹窗后 Ozon 草稿箱条数不应增加"
         pallet_page.open("jd").wait_loaded("jd")
         pallet_page.select_first(1)
         blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
         if not pallet_page.batch_dialog_seen:
             raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
         if pallet_page.batch_shop_count < 2:
-            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+            pytest.skip(f"同江和 Minjin 未同时写入，实际 {pallet_page.batch_shop_count}")
         assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
-        draft_page.open_ozon()
-        draft_page.wait_origin("京东精选", ozon=True)
-        assert draft_page.all_count() >= before + pallet_page.batch_shop_count
+        draft_page.expect_one_draft_each(wb_before, oz_before, "京东精选")

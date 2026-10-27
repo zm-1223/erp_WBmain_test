@@ -118,8 +118,7 @@ class TestWb1688LinkCollect:
     @pytest.mark.p0
     def test_tc71_collect_multi_shop_draft(self, collect_page, draft_page):
         collect_page.ensure_card()
-        draft_page.open()
-        before = draft_page.all_count()
+        wb_before, oz_before = draft_page.both_counts()
         collect_page.ensure_card()
         if collect_page.select_cards(1) < 1:
             pytest.skip("手动采集卡片无法勾选")
@@ -127,10 +126,11 @@ class TestWb1688LinkCollect:
         if not collect_page.batch_dialog_seen:
             raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
         if collect_page.batch_shop_count < 2:
-            pytest.skip(f"Wildberries 可选店铺不足 2 个，实际 {collect_page.batch_shop_count}")
+            pytest.skip(f"同江和 Minjin 未同时写入，实际 {collect_page.batch_shop_count}")
         assert f"将写入{collect_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
+        draft_page.expect_one_draft_each(wb_before, oz_before)
         draft_page.open()
-        text = draft_page.wait_all_count_at_least(before + collect_page.batch_shop_count)
-        page = draft_page.page_text()
-        assert config.OFFER_ID in page or "1688" in page
-        assert text >= before + collect_page.batch_shop_count
+        wb_text = draft_page.page_text()
+        draft_page.open_ozon()
+        oz_text = draft_page.page_text()
+        assert config.OFFER_ID in wb_text + oz_text or "1688" in wb_text + oz_text

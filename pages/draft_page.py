@@ -77,6 +77,24 @@ class DraftPage(BasePage):
                 self.open()
         raise AssertionError(f"草稿箱未出现来源「{keyword}」: {last[:500]}")
 
+    def both_counts(self) -> tuple[int, int]:
+        self.open()
+        wb = self.all_count()
+        self.open_ozon()
+        return wb, self.all_count()
+
+    def expect_one_draft_each(self, wb_before: int, oz_before: int, origin: str | None = None):
+        """同江写入 WB 草稿箱一条，Minjin 写入 Ozon 草稿箱一条。不把「将写入 2」加在同一个箱子上。"""
+        self.open()
+        wb = self.wait_all_count_at_least(wb_before + 1)
+        if origin:
+            self.wait_origin(origin)
+        self.open_ozon()
+        oz = self.wait_all_count_at_least(oz_before + 1, ozon=True)
+        if origin:
+            self.wait_origin(origin, ozon=True)
+        return wb, oz
+
     def wait_all_count_at_least(self, n: int, timeout: int = 25, ozon: bool = False) -> int:
         end = time.time() + timeout
         last = 0

@@ -14,12 +14,15 @@ USERNAME = os.getenv("ERP_USERNAME", "luojiaxing1")
 # 优先用环境变量，避免把真实密码写进公开仓库
 PASSWORD = os.getenv("ERP_PASSWORD", "ZYJK123456")
 
-WB_SHOP_NAME = os.getenv("ERP_WB_SHOP", "天津智云电子商务有限公司")
-WB_SHOP_OPTION = os.getenv("ERP_WB_SHOP_OPTION", "[WB] 天津智云电子商务有限公司")
+WB_SHOP_NAME = os.getenv("ERP_WB_SHOP", "同江市同智跨境电子商务有限公司")
+WB_SHOP_OPTION = os.getenv("ERP_WB_SHOP_OPTION", "[WB] 同江市同智跨境电子商务有限公司")
 WB_SHOP_PALLET_1688 = os.getenv(
     "ERP_WB_SHOP_PALLET_1688",
-    "[WILDBERRIES] 天津智云电子商务有限公司",
+    "[WILDBERRIES] 同江市同智跨境电子商务有限公司",
 )
+# 批量草稿弹窗里要点名勾选的两家，不改去勾天津智云或 VARUS
+BATCH_WB_SHOP = os.getenv("ERP_BATCH_WB_SHOP", "同江")
+BATCH_OZON_SHOP = os.getenv("ERP_BATCH_OZON_SHOP", "Minjin")
 
 OFFER_ID = "726638874254"
 # 该 offer 货源实测包装（刊登页带出应与此一致）

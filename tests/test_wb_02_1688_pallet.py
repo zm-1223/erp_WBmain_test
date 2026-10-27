@@ -41,7 +41,7 @@ class TestWb1688Pallet:
     def test_tc11_batch_without_select(self, pallet_page):
         pallet_page.open("1688").wait_loaded("1688")
         tip = pallet_page.click_batch_draft()
-        assert any(k in tip for k in ("勾选", "请先", "至少", "选择")), tip[:300]
+        assert "请先勾选" in tip, tip[:300]
 
     @allure.story("入口/一键刊登WB")
     @allure.title("TC12 有货时一键刊登进入WB编辑页")
@@ -69,18 +69,17 @@ class TestWb1688Pallet:
         pallet_page.open("1688").wait_loaded("1688")
         if not pallet_page.has_goods():
             pytest.skip("1688精选无商品")
-        draft_page.open()
-        before = draft_page.all_count()
+        wb_before, oz_before = draft_page.both_counts()
         pallet_page.open("1688").wait_loaded("1688")
         pallet_page.select_first(1)
         blob = pallet_page.click_batch_draft(platform="Wildberries", shop_count=2)
         if not pallet_page.batch_dialog_seen:
             raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
         if pallet_page.batch_shop_count < 2:
-            pytest.skip(f"Wildberries 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+            pytest.skip(f"同江和 Minjin 未同时写入，实际 {pallet_page.batch_shop_count}")
         assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
+        draft_page.expect_one_draft_each(wb_before, oz_before, "1688精选")
         draft_page.open()
-        draft_page.wait_all_count_at_least(before + pallet_page.batch_shop_count)
         draft_page.click_edit()
         wb_listing_page.wait_open()
         assert wb_listing_page.has_recommended_category(), (

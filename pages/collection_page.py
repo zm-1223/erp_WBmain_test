@@ -209,8 +209,11 @@ class CollectionPage(BasePage):
         return clicked
 
     def click_collect_to_draft(self, platform: str = "Wildberries", shop_count: int = 2, confirm: bool = True):
-        """手动采集：采集到草稿箱，弹窗里可同时勾多个店铺。"""
+        """手动采集：采集到草稿箱，弹窗里可同时勾多个店铺。未勾选商品时不选店铺。"""
+        selected = self.selected_goods_count()
         dialog = self.open_batch_draft_dialog(("采集到草稿箱", "批量采集到草稿箱", "批量生成草稿"))
+        if selected < 1:
+            return self.unselected_batch_tip(dialog)
         if dialog is not None:
             return self.complete_target_shops(platform, shop_count, confirm)
         tip = self.popup_text(timeout=2) or self.toast(2) or ""

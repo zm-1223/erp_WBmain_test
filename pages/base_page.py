@@ -350,6 +350,63 @@ class BasePage:
             time.sleep(0.3)
         raise AssertionError(f"未找到按钮 {labels}")
 
+    def selected_goods_count(self) -> int:
+        """列表里已勾选的商品。弹窗里的平台、店铺勾选不算。"""
+        try:
+            n = self.driver.execute_script(
+                """
+                const nodes = document.querySelectorAll(
+                    '.el-checkbox.is-checked, .el-checkbox__input.is-checked'
+                );
+                const seen = new Set();
+                let count = 0;
+                nodes.forEach((node) => {
+                    const box = node.closest('.el-checkbox') || node;
+                    if (seen.has(box)) return;
+                    seen.add(box);
+                    if (box.closest('.el-dialog, .el-message-box')) return;
+                    const style = window.getComputedStyle(box);
+                    if (style.display === 'none' || style.visibility === 'hidden') return;
+                    const text = box.innerText || '';
+                    if (text.indexOf('全选') >= 0) return;
+                    count += 1;
+                });
+                return count;
+                """
+            )
+        except Exception:
+            return 0
+        return int(n or 0)
+
+    def unselected_batch_tip(self, dialog=None) -> str:
+        """未勾选商品时只取页面提示。店铺弹窗说明里的「勾选」不算这条提示。"""
+        tip = self.toast(2) or ""
+        if dialog is not None:
+            self.close_target_shop_dialog(dialog)
+        if "选择目标平台" in tip or "将写入" in tip:
+            messages = []
+            for node in self.driver.find_elements(
+                By.CSS_SELECTOR, ".el-message__content, .el-notification__content"
+            ):
+                text = (node.text or "").strip()
+                if text and "选择目标平台" not in text:
+                    messages.append(text)
+            tip = "\n".join(messages)
+        logger.info("未勾选商品，不写入草稿: %s", (tip or "")[:200])
+        return tip
+
+    def close_target_shop_dialog(self, dialog=None):
+        dialog = dialog or self.target_shop_dialog()
+        if dialog is None:
+            return self
+        for css in (".el-dialog__headerbtn", ".el-dialog__close"):
+            icons = [i for i in dialog.find_elements(By.CSS_SELECTOR, css) if i.is_displayed()]
+            if icons:
+                self.driver.execute_script("arguments[0].click();", icons[0])
+                time.sleep(0.3)
+                return self
+        return self
+
     def target_shop_dialog(self):
         for el in self.driver.find_elements(By.CSS_SELECTOR, ".el-dialog"):
             try:
@@ -361,10 +418,77 @@ class BasePage:
 
     def _check_box(self, el):
         cls = el.get_attribute("class") or ""
+        try:
+            inner = el.find_element(By.CSS_SELECTOR, ".el-checkbox__input")
+            cls += " " + (inner.get_attribute("class") or "")
+        except Exception:
+            pass
         if "is-checked" in cls:
             return
         self.driver.execute_script("arguments[0].click();", el)
         time.sleep(0.15)
+
+    def _platform_checkbox(self, dialog, platform: str):
+        """平台名写在复选框旁边。只认带「家店」且只有这一家平台的那一行。"""
+        return self.driver.execute_script(
+            """
+            const dialog = arguments[0], platform = arguments[1];
+            const nodes = dialog.querySelectorAll('div,span,p,label');
+            for (const el of nodes) {
+              const own = (el.innerText || '').trim();
+              if (own !== platform) continue;
+              let node = el;
+              for (let i = 0; i < 6; i++) {
+                if (!node) break;
+                const t = (node.innerText || '').trim();
+                if (t.includes('选择目标平台') || t.length > 90) break;
+                const lines = t.split(/\\n/).map(s => s.trim()).filter(Boolean);
+                const plats = lines.filter(ln => ln === 'Wildberries' || ln === 'Ozon');
+                const boxes = [...node.querySelectorAll('.el-checkbox')].filter(
+                  b => !/全选|清空/.test(b.innerText || '')
+                );
+                if (boxes.length === 1 && t.includes('家') && plats.length === 1 && plats[0] === platform) {
+                  return boxes[0];
+                }
+                node = node.parentElement;
+              }
+            }
+            return null;
+            """,
+            dialog,
+            platform,
+        )
+
+    def _shop_checkbox(self, dialog, keyword: str):
+        """按店铺名找右侧具体店铺，不点平台行和全选。"""
+        return self.driver.execute_script(
+            """
+            const dialog = arguments[0], keyword = (arguments[1] || '').toLowerCase();
+            const nodes = dialog.querySelectorAll('div,span,p,label');
+            for (const el of nodes) {
+              const own = (el.innerText || '').trim();
+              if (!own || own.length > 40 || !own.toLowerCase().includes(keyword)) continue;
+              if (own === 'WB' || own === 'OZ' || own.includes('家') || own.includes('全选')) continue;
+              let node = el;
+              for (let i = 0; i < 6; i++) {
+                if (!node) break;
+                const t = (node.innerText || '').trim();
+                if (t.includes('选择目标平台') || t.length > 90) break;
+                const lines = t.split(/\\n/).map(s => s.trim()).filter(Boolean);
+                const boxes = [...node.querySelectorAll('.el-checkbox')].filter(
+                  b => !/全选|清空/.test(b.innerText || '')
+                );
+                if (boxes.length === 1 && (lines.includes('WB') || lines.includes('OZ')) && !t.includes('家')) {
+                  return boxes[0];
+                }
+                node = node.parentElement;
+              }
+            }
+            return null;
+            """,
+            dialog,
+            keyword,
+        )
 
     def _dialog_checkboxes(self, dialog):
         boxes = []
@@ -430,39 +554,35 @@ class BasePage:
             dialog = self.target_shop_dialog()
         if dialog is None:
             raise AssertionError("未出现「选择目标平台和店铺」")
-        mark = "OZ" if "ozon" in platform.lower() else "WB"
-        platform_hit = False
-        for box in self._dialog_checkboxes(dialog):
-            text = (box.text or "").strip()
-            first = text.splitlines()[0].strip().lower() if text else ""
-            if first == platform.lower() or (
-                platform.lower() in text.lower() and "家" in text and "全选" not in text
-            ):
+        # 仍先核对本次要测的平台在，再点名勾同江和 Minjin。找不到就失败，不改去勾别的店，也不改断言。
+        needed_platforms = ["Wildberries", "Ozon"]
+        if platform not in needed_platforms and platform.lower() != "ozon":
+            needed_platforms.insert(0, platform)
+        for name in needed_platforms:
+            box = self._platform_checkbox(dialog, name)
+            if box is None and name == platform:
+                raise AssertionError(f"弹窗左侧没有平台「{platform}」: {(dialog.text or '')[:400]}")
+            if box is not None:
                 self._check_box(box)
-                platform_hit = True
-                break
-        if not platform_hit:
-            raise AssertionError(f"弹窗左侧没有平台「{platform}」: {(dialog.text or '')[:300]}")
         time.sleep(0.35)
         dialog = self.target_shop_dialog() or dialog
-        shops = [box for box in self._dialog_checkboxes(dialog) if self._is_specific_shop(box, mark)]
-        if len(shops) < shop_count:
-            self.batch_shop_count = len(shops)
-            self.batch_dialog_text = dialog.text or ""
-            icons = [
-                i
-                for i in dialog.find_elements(By.CSS_SELECTOR, ".el-dialog__headerbtn")
-                if i.is_displayed()
-            ]
-            if icons:
-                self.driver.execute_script("arguments[0].click();", icons[0])
-                time.sleep(0.3)
-            return self.batch_dialog_text
+        wanted = [config.BATCH_WB_SHOP, config.BATCH_OZON_SHOP]
+        shops = []
         names = []
-        for box in shops[:shop_count]:
+        missing = []
+        for keyword in wanted:
+            box = self._shop_checkbox(dialog, keyword)
+            if box is None:
+                missing.append(keyword)
+                continue
             self._check_box(box)
-            own = (box.text or "").strip()
-            names.append(own.splitlines()[0].strip() if own else self._row_text(box).splitlines()[0].strip())
+            shops.append(box)
+            names.append(self._row_text(box).splitlines()[0].strip() or keyword)
+        if missing or len(shops) < shop_count:
+            raise AssertionError(
+                f"要勾的店铺是{wanted}，没有找到{missing or wanted}。"
+                f"不改勾其他店铺。弹窗: {(dialog.text or '')[:400]}"
+            )
         self.batch_shop_names = names
         time.sleep(0.3)
         dialog = self.target_shop_dialog() or dialog

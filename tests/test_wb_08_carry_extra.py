@@ -120,24 +120,23 @@ class TestWbCarryExtra:
         pallet_page.open("jd").wait_loaded("jd")
         if not pallet_page.has_goods():
             pytest.skip("京东精选无商品")
-        draft_page.open()
-        before = draft_page.all_count()
+        wb_before, oz_before = draft_page.both_counts()
         pallet_page.open("jd").wait_loaded("jd")
         pallet_page.select_first(1)
         pallet_page.click_batch_draft(confirm=False, platform="Wildberries", shop_count=2)
         draft_page.open()
-        assert draft_page.all_count() == before, "关闭店铺弹窗后草稿箱条数不应增加"
+        assert draft_page.all_count() == wb_before, "关闭店铺弹窗后 WB 草稿箱条数不应增加"
+        draft_page.open_ozon()
+        assert draft_page.all_count() == oz_before, "关闭店铺弹窗后 Ozon 草稿箱条数不应增加"
         pallet_page.open("jd").wait_loaded("jd")
         pallet_page.select_first(1)
         blob = pallet_page.click_batch_draft(confirm=True, platform="Wildberries", shop_count=2)
         if not pallet_page.batch_dialog_seen:
             raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
         if pallet_page.batch_shop_count < 2:
-            pytest.skip(f"Wildberries 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+            pytest.skip(f"同江和 Minjin 未同时写入，实际 {pallet_page.batch_shop_count}")
         assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
-        draft_page.open()
-        draft_page.wait_origin("京东精选")
-        assert draft_page.all_count() >= before + pallet_page.batch_shop_count
+        draft_page.expect_one_draft_each(wb_before, oz_before, "京东精选")
 
 
 @allure.epic("如斯达ERP")

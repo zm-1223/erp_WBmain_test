@@ -293,15 +293,16 @@ class TestOzonDraftCarry:
         n = pallet_page.select_first(1)
         if n < 1:
             pytest.skip("京东精选无法勾选")
+        wb_before, oz_before = draft_page.both_counts()
+        pallet_page.open("jd").wait_loaded("jd")
+        pallet_page.select_first(1)
         blob = pallet_page.click_batch_draft(confirm=True, platform="Ozon", shop_count=2)
         if not pallet_page.batch_dialog_seen:
             raise AssertionError(f"未出现选择目标平台和店铺: {blob[:300]}")
         if pallet_page.batch_shop_count < 2:
-            pytest.skip(f"Ozon 可选店铺不足 2 个，实际 {pallet_page.batch_shop_count}")
+            pytest.skip(f"同江和 Minjin 未同时写入，实际 {pallet_page.batch_shop_count}")
         assert f"将写入{pallet_page.batch_shop_count}个店铺" in blob.replace(" ", "").replace("\n", "")
-        draft_page.open_ozon()
-        blob = draft_page.wait_origin("京东精选", ozon=True)
-        assert any(k in blob for k in ("Ozon", "OZON", "一键Ozon", "京东精选")), blob[:400]
+        draft_page.expect_one_draft_each(wb_before, oz_before, "京东精选")
 
     @allure.story("流程/待完善不可刊登")
     @allure.title("OZ30 Ozon 草稿待完善时不可批量提交")

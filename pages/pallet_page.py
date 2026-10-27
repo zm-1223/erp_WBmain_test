@@ -110,8 +110,11 @@ class PalletPage(BasePage):
             raise AssertionError("一键刊登按钮未出现或不可点击")
 
     def click_batch_draft(self, confirm: bool = True, platform: str = "Wildberries", shop_count: int = 2):
-        """勾选商品后点批量采集。新弹窗可同时勾多个店铺；未勾选商品则只返回提示。"""
+        """勾选商品后点批量采集。未勾选商品时不选店铺、不点完成，只把提示返回给用例。"""
+        selected = self.selected_goods_count()
         dialog = self.open_batch_draft_dialog(("批量采集到草稿箱", "批量生成草稿", "采集到草稿箱"))
+        if selected < 1:
+            return self.unselected_batch_tip(dialog)
         if dialog is not None:
             return self.complete_target_shops(platform, shop_count, confirm)
         tip = self.popup_text(timeout=2) or self.toast(2) or ""
@@ -203,16 +206,18 @@ class PalletPage(BasePage):
                 continue
             if "WB" in t or "WILDBERRIES" in t or config.WB_SHOP_NAME in t:
                 preferred.append(o)
+        named = [o for o in preferred if config.BATCH_WB_SHOP in (o.text or "")]
+        pool = named or preferred
         if name_part:
-            for o in preferred:
-                if name_part in o.text:
+            for o in pool:
+                if name_part in (o.text or ""):
                     self.js_click(o)
                     time.sleep(0.3)
                     return o.text
-        if preferred:
-            self.js_click(preferred[0])
+        if pool:
+            self.js_click(pool[0])
             time.sleep(0.3)
-            return preferred[0].text
+            return pool[0].text
         return ""
 
     def first_item_text(self) -> str:
@@ -413,13 +418,21 @@ class PalletPage(BasePage):
         items = self.driver.find_elements(
             By.CSS_SELECTOR, ".el-select-dropdown__item, [role='option']"
         )
+        ozon_items = []
+        named = []
         for o in items:
             t = (o.text or "").strip()
-            if o.is_displayed() and t and "OZON" in t.upper():
-                self.js_click(o)
-                time.sleep(0.3)
-                return t
-        return ""
+            if not o.is_displayed() or not t or "OZON" not in t.upper():
+                continue
+            ozon_items.append(o)
+            if config.BATCH_OZON_SHOP.lower() in t.lower():
+                named.append(o)
+        chosen = (named or ozon_items)
+        if not chosen:
+            return ""
+        self.js_click(chosen[0])
+        time.sleep(0.3)
+        return chosen[0].text
 
     def source_snapshot(self) -> dict:
         from utils.source_card import parse_source_card
